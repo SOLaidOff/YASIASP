@@ -53,6 +53,11 @@ public class Main {
     return "index";
   }
 
+  @RequestMapping("/test")
+  String test() {
+    return "test";
+  }
+
   @RequestMapping("/db")
   String db(Map<String, Object> model) {
     try (Connection connection = dataSource.getConnection()) {
