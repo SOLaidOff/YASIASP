@@ -2,3 +2,8 @@ target
 .env
 .idea/
 *.iml
+/bin/
+
+.classpath
+.project
+.settings
