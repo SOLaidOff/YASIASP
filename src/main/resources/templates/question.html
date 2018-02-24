@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<!-- Commenting out original Thymeleaf-enabled HTML tag as test -->
+<!-- <html xmlns:th="http://www.thymeleaf.org" th:replace="~{fragments/layout :: layout (~{::body},'index')}"> -->
+<html>
+
+<head>
+<title>Yet Another "Stack in a Semester" Project - [TODO: replace this with question title]</title>
+</head>
+
+<body>
+
+<div><!-- Div enclosing entire question -->
+
+<form>
+<input type="submit"><!-- Upvote button -->
+</form>
+<span>Question score</span>
+<form>
+<input type="submit"><!-- Downvote button -->
+</form>
+
+<div>
+Question body text goes here. Lorem ipsum dolor sit amet...
+</div>
+
+<a href="edit_question.html">Edit this question</a>
+
+<ul>
+<li>Comments on question, if any, go here
+</ul>
+
+</div><!-- Div enclosing entire question -->
+
+<p>TODO: Option to sort answers by score/date
+
+<!-- Answers go below here -->
+
+<!-- FOR EACH ANSWER: -->
+<div><!-- Div enclosing entire answer -->
+
+<form>
+<input type="submit"><!-- Upvote button -->
+</form>
+<span>Answer score</span>
+<form>
+<input type="submit"><!-- Downvote button -->
+</form>
+
+<div>
+Answer body text goes here. Lorem ipsum dolor sit amet...
+</div>
+
+<a href="edit_answer.html">Edit this answer</a>
+
+<ul>
+<li>Comments on answer, if any, go here
+</ul>
+
+</div><!-- Div enclosing entire answer -->
+
+
+</body>
+</html>
