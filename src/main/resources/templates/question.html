@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- Commenting out original Thymeleaf-enabled HTML tag as test -->
 <!-- <html xmlns:th="http://www.thymeleaf.org" th:replace="~{fragments/layout :: layout (~{::body},'index')}"> -->
-<html>
+<html xmlns:th="http://www.thymeleaf.org">
 
 <head>
 <title>Yet Another "Stack in a Semester" Project - [TODO: replace this with question title]</title>
@@ -9,21 +9,51 @@
 
 <body>
 
+<!-- DEBUG 
+Query string:
+<br />
+<h2 th:text="${queryString}">Default header text</h2>
+<br />
+<br />
+<p th:text="${author}">[author name]</p>
+<p th:text="${title}">[question title]</p>
+<p th:utext="${body}">[question body]</p>
+<p th:text="${timestamp}">[timestamp]</p>
+<p th:text="${score}">[score]</p>
+<hr />
+ END DEBUG -->
+
 <div><!-- Div enclosing entire question -->
 
-<form>
-<input type="submit"><!-- Upvote button -->
+<form method="get">
+<input type="hidden" name="upvote" value="true"> <!-- Results in /question?upvote=true -->
+<input type="submit" value="Upvote"><!-- Upvote button -->
 </form>
-<span>Question score</span>
-<form>
-<input type="submit"><!-- Downvote button -->
+<span th:text="${score}">Question score</span>
+<form method="get">
+<input type="hidden" name="downvote" value="true">
+<input type="submit" value="Downvote"><!-- Downvote button -->
 </form>
+
+<h1 th:text="${title}">
+Question title text goes here.
+</h1>
 
 <div>
-Question body text goes here. Lorem ipsum dolor sit amet...
+Question tags go here. [java] [sql] [heroku]
 </div>
 
-<a href="edit_question.html">Edit this question</a>
+<br />
+<div th:utext="${body}">
+Question body text goes here. Lorem ipsum dolor sit amet...
+</div>
+<br />
+
+Author: <span th:text="${author}">Author name goes here.</span>
+<br />
+<span th:text="${timestamp}">timestamp</span>
+
+<a href="editquestion" th:href="|/editquestion?id=${id}|">Edit this question</a>
 
 <ul>
 <li>Comments on question, if any, go here
@@ -33,24 +63,30 @@ Question body text goes here. Lorem ipsum dolor sit amet...
 
 <p>TODO: Option to sort answers by score/date
 
+<hr />
+
 <!-- Answers go below here -->
+
+<!-- TODO: use Thymeleaf to automatically order these -->
 
 <!-- FOR EACH ANSWER: -->
 <div><!-- Div enclosing entire answer -->
 
-<form>
-<input type="submit"><!-- Upvote button -->
+<form method="get">
+<input type="hidden" name="upvote" value="true">
+<input type="submit" value="Upvote"><!-- Upvote button -->
 </form>
 <span>Answer score</span>
-<form>
-<input type="submit"><!-- Downvote button -->
+<form method="get">
+<input type="hidden" name="downvote" value="true">
+<input type="submit" value="Downvote"><!-- Downvote button -->
 </form>
 
 <div>
 Answer body text goes here. Lorem ipsum dolor sit amet...
 </div>
 
-<a href="edit_answer.html">Edit this answer</a>
+<a href="editanswer">Edit this answer</a>
 
 <ul>
 <li>Comments on answer, if any, go here

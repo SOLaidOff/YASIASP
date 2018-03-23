@@ -1,1 +1,1 @@
-web: java -jar target/java-getting-started-1.0.jar
+web: java -Xdebug -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5050 -jar target/YASIAS-1.0.jar

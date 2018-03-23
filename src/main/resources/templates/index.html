@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- Commenting out original Thymeleaf-enabled HTML tag as test -->
 <!-- <html xmlns:th="http://www.thymeleaf.org" th:replace="~{fragments/layout :: layout (~{::body},'index')}"> -->
-<html>
+<html xmlns:th="http://www.thymeleaf.org"> <!-- Namespace not technically required, but it does eliminate IDE warnings -->
 
 <head>
 <title>Yet Another "Stack in a Semester" Project</title>
@@ -10,8 +10,36 @@
 <body>
 
 <h1>Yet Another "Stack in a Semester" Project</h1>
+<h3>AKA YASIAS</h3>
 
-<a href="ask.html">TODO: link to ""Ask a question" page here</a>
+<div style="border: none; display: block; clear: both;">
+
+<div style="width: 48%; float: left; border: 1px solid black; margin: 1px;">
+  <!-- IF NO USERNAME SELECTED  -->
+  <div th:if="${currentUser} == null">
+    <h2>Welcome, guest!</h2>
+  </div>
+  <!-- ELSE -->
+  <div th:unless="${currentUser} == null">
+    <h2 th:text="|Hello, you are using the system as ${currentUser}.|">[welcome and user ID text]</h2>
+  </div>
+  
+  Want to <a href="adduser">add a new user</a>?
+  
+  <h2>Existing users:</h2>
+
+  <ul th:each="name : ${names}">
+    <li><a href="#" th:href="|/?name=${name}|" th:text="${name}">[name]</a>
+  </ul>
+</div>
+
+<div style="width: 48%; float: right; border: 1px solid black; margin: 1px;">
+
+<h2>This is a Q&A site, so...</h2>
+
+Want to <a href="/ask">ask a new question</a>?
+
+<h2>Existing questions</h2>
 
 <table>
 <tr>
@@ -40,10 +68,13 @@
 <td>TODO</td>
 </tr>
 </table>
+</div>
 
-<hr />
+</div>
 
-<div class="jumbotron text-center">
+<hr style="clear: both;" />
+
+<div class="jumbotron text-center" style="clear: both;">
   <div class="container">
     <a href="/" class="lang-logo">
       <img src="/lang-logo.png">
