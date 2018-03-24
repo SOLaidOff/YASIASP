@@ -79,15 +79,15 @@ public class Main {
     @RequestMapping("/")
     String index(Map<String, Object> model, HttpServletRequest request) {
         String queryString = request.getQueryString(); // Ex. "name=Harry" (without the quotes)
-        Map<String, String> queryMap = parseHttpRequestParams(queryString);
+        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
 
-        String currentUser = queryMap.get("name"); // null if there was no name param
+        String currentUser = httpRqstVarsMap.get("name"); // null if there was no name param
         model.put("currentUser", currentUser);
 
         try (Connection connection = dataSource.getConnection()) {
             Statement stmt = connection.createStatement();
 
-            ResultSet rs = stmt.executeQuery("SELECT Name FROM Users");
+            ResultSet rs = stmt.executeQuery("SELECT Name FROM Users;");
 
             ArrayList<String> output = new ArrayList<String>();
             while (rs.next()) {
@@ -95,7 +95,7 @@ public class Main {
             }
             model.put("names", output);
         } catch (Exception e) {
-            model.put("message", e.getMessage());
+            model.put("message", "error in try/catch of root; " + e.getMessage());
 
             return "error";
         }
@@ -104,28 +104,71 @@ public class Main {
     }
 
     @RequestMapping("/ask")
-    String ask() {
+    String ask(Map<String, Object> model, HttpServletRequest request) {
+        String queryString = request.getQueryString();
+
+        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
+        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
+        Collection<String> queryValues = httpRqstVarsMap.values();
+
+        String currentUser = httpRqstVarsMap.get("name"); // null if there was no name param
+        if(currentUser == null) {
+            currentUser = "anonymous";
+        }
+        model.put("currentUser", currentUser);
+        
+        boolean hasTitle = httpRqstKeys.contains("title");
+        boolean hasBody = httpRqstKeys.contains("body");
+        boolean hasTags = httpRqstKeys.contains("tags");
+        
+        if(hasTitle && hasBody && hasTags) {
+            int sqlReturnValue = -7;
+            
+            try (Connection connection = dataSource.getConnection()) {
+                Statement stmt = connection.createStatement();
+                
+                StringBuilder sqlBuilder = new StringBuilder();
+                sqlBuilder.append("INSERT INTO Questions VALUES (");
+                sqlBuilder.append("DEFAULT"); // auto-incrementing ID
+                sqlBuilder.append(", '");
+                sqlBuilder.append(currentUser); // author
+                sqlBuilder.append("', '");
+                sqlBuilder.append(httpRqstVarsMap.get("title")); // title
+                sqlBuilder.append("', '");
+                sqlBuilder.append(httpRqstVarsMap.get("body")); // body
+                sqlBuilder.append("', ");
+                sqlBuilder.append("'now', "); // timestamp
+                sqlBuilder.append("0"); // score
+                sqlBuilder.append(");");
+
+                sqlReturnValue = stmt.executeUpdate(sqlBuilder.toString());
+                // TODO: handle DB errors
+                
+                // TODO: insert tags as well
+            } catch (Exception e) {
+                model.put("message", "try/catch error in /ask(); SQL return value is " + sqlReturnValue + " (default is -7); " + e.getMessage());
+
+                return "error";
+            }
+        }
+        
         return "ask";
     }
 
     @RequestMapping("/question")
     String question(Map<String, Object> model, HttpServletRequest request, HttpServletResponse response) {
-        // TODO: fill in model, using question ID
-
         String queryString = request.getQueryString(); // Ex. "upvote=true&foo=bar" (without the quotes)
         model.put("queryString", queryString);
 
-        // String httpVerb = request.getMethod();
+        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
+        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
+        Collection<String> queryValues = httpRqstVarsMap.values();
 
-        Map<String, String> queryMap = parseHttpRequestParams(queryString);
-        Set<String> queryParams = queryMap.keySet();
-        Collection<String> queryValues = queryMap.values();
-
-        if (queryParams.contains("id")) {
+        if (httpRqstKeys.contains("id")) {
             try (Connection connection = dataSource.getConnection()) {
                 Statement stmt = connection.createStatement();
 
-                ResultSet rs = stmt.executeQuery("SELECT * FROM Questions WHERE Id=" + queryMap.get("id"));
+                ResultSet rs = stmt.executeQuery("SELECT * FROM Questions WHERE Id=" + httpRqstVarsMap.get("id"));
 
                 while (rs.next()) {
                     model.put("author", rs.getString("Author"));
@@ -141,7 +184,7 @@ public class Main {
             }
         }
 
-        if (queryParams.contains("upvote")) {
+        if (httpRqstKeys.contains("upvote")) {
             // stmt.executeUpdate("UPDATE questions WHERE id=blah"); // DB query for upvoting
         }
 
@@ -156,29 +199,54 @@ public class Main {
         return "test";
     }
 
-    @RequestMapping("/adduser")
-    String adduser(Map<String, Object> model, HttpServletRequest request) {
+    @RequestMapping("/useradd")
+    String useradd(Map<String, Object> model, HttpServletRequest request) {
         String queryString = request.getQueryString(); // Ex. "upvote=true&foo=bar" (without the quotes)
-        Map<String, String> queryMap = parseHttpRequestParams(queryString);
-        Set<String> queryParams = queryMap.keySet();
+        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
+        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
 
-        if (queryParams.contains("newusername")) {
+        if (httpRqstKeys.contains("newusername")) {
             int sqlReturnValue = -5;
             try (Connection connection = dataSource.getConnection()) {
                 Statement stmt = connection.createStatement();
 
-                sqlReturnValue = stmt.executeUpdate("INSERT INTO Users VALUES ('" + queryMap.get("newusername") + "');");
+                sqlReturnValue = stmt.executeUpdate("INSERT INTO Users VALUES ('" + httpRqstVarsMap.get("newusername") + "');");
                 // TODO: handle DB errors, e.g. duplicate name
             } catch (Exception e) {
-                model.put("message", "try/catch error in adduser(); SQL return value is " + sqlReturnValue + " (default is -5); " + e.getMessage());
+                model.put("message", "try/catch error in useradd(); SQL return value is " + sqlReturnValue + " (default is -5); " + e.getMessage());
 
                 return "error";
             }
 
-            return "adduser";
+            return "useradd";
         }
 
-        return "adduser";
+        return "useradd";
+    }
+
+    @RequestMapping("/userdelete")
+    String userdelete(Map<String, Object> model, HttpServletRequest request) {
+        String queryString = request.getQueryString(); // Ex. "upvote=true&foo=bar" (without the quotes)
+        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
+        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
+
+        if (httpRqstKeys.contains("name")) {
+            int sqlReturnValue = -3;
+            try (Connection connection = dataSource.getConnection()) {
+                Statement stmt = connection.createStatement();
+
+                sqlReturnValue = stmt.executeUpdate("DELETE FROM Users WHERE Name = '" + httpRqstVarsMap.get("name") + "';");
+                // TODO: handle DB errors, e.g. non-existant name
+            } catch (Exception e) {
+                model.put("message", "try/catch error in userdelete(); SQL return value is " + sqlReturnValue + " (default is -3); " + e.getMessage());
+
+                return "error";
+            }
+
+            model.put("removedUser", httpRqstVarsMap.get("name"));
+        }
+
+        return "userdelete";
     }
 
     @RequestMapping("/debug")

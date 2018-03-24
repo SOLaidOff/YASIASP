@@ -9,55 +9,39 @@
 
 <body>
 
-<!-- DEBUG 
-Query string:
-<br />
-<h2 th:text="${queryString}">Default header text</h2>
-<br />
-<br />
-<p th:text="${author}">[author name]</p>
-<p th:text="${title}">[question title]</p>
-<p th:utext="${body}">[question body]</p>
-<p th:text="${timestamp}">[timestamp]</p>
-<p th:text="${score}">[score]</p>
-<hr />
- END DEBUG -->
-
 <div><!-- Div enclosing entire question -->
 
-<form method="get">
-<input type="hidden" name="upvote" value="true"> <!-- Results in /question?upvote=true -->
-<input type="submit" value="Upvote"><!-- Upvote button -->
-</form>
-<span th:text="${score}">Question score</span>
-<form method="get">
-<input type="hidden" name="downvote" value="true">
-<input type="submit" value="Downvote"><!-- Downvote button -->
-</form>
+  <form method="get">
+    <input type="hidden" name="upvote" value="true"> <!-- Results in /question?upvote=true -->
+    <input type="submit" value="Upvote"><!-- Upvote button -->
+  </form>
+  <span th:text="${score}">Question score</span>
+  <form method="get">
+    <input type="hidden" name="downvote" value="true">
+    <input type="submit" value="Downvote"><!-- Downvote button -->
+  </form>
 
-<h1 th:text="${title}">
-Question title text goes here.
-</h1>
+  <h1 th:text="${title}">Question title text goes here.</h1>
 
-<div>
-Question tags go here. [java] [sql] [heroku]
-</div>
+  <div>
+  Question tags go here. [java] [sql] [heroku]
+  </div>
 
-<br />
-<div th:utext="${body}">
-Question body text goes here. Lorem ipsum dolor sit amet...
-</div>
-<br />
+  <br />
+  <div th:utext="${body}">
+  Question body text goes here. Lorem ipsum dolor sit amet...
+  </div>
+  <br />
 
-Author: <span th:text="${author}">Author name goes here.</span>
-<br />
-<span th:text="${timestamp}">timestamp</span>
+  Author: <span th:text="${author}">Author name goes here.</span>
+  <br />
+  <span th:text="${timestamp}">timestamp</span>
 
-<a href="editquestion" th:href="|/editquestion?id=${id}|">Edit this question</a>
+  <a href="editquestion" th:href="|/editquestion?id=${id}|">Edit this question</a>
 
-<ul>
-<li>Comments on question, if any, go here
-</ul>
+  <ul>
+  <li>Comments on question, if any, go here
+  </ul>
 
 </div><!-- Div enclosing entire question -->
 
@@ -93,7 +77,6 @@ Answer body text goes here. Lorem ipsum dolor sit amet...
 </ul>
 
 </div><!-- Div enclosing entire answer -->
-
 
 </body>
 </html>
