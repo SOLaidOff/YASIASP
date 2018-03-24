@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+<title>YASIAS - Delete Question</title>
+</head>
+
+<body>
+	<h1>Delete a YASIAS question</h1>
+	
+	<p th:text="|Question ${removedQuestionId} deleted by ${currentUser}.|">Question [id] deleted by [name].</p>
+	
+	<p><a href="/" th:href="|/?name=${currentUser}|">Return to main page</a></p>
+</body>
+
+</html>

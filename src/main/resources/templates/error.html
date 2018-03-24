@@ -10,7 +10,7 @@
 <body>
 	<p th:text="${message}">Exception message</p>
 	<p>
-		<a href="/">Return to main page</a>
+		<a href="/" th:href="|/?name=${currentUser}|">Return to main page</a>
 </body>
 
 </html>

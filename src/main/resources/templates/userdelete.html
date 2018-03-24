@@ -11,7 +11,7 @@
 	
 	<p th:text="|User ${removedUser} deleted.|">User [username] deleted.</p>
 	
-	<p><a href="/">Return to main page</a></p>
+	<p><a href="/" th:href="|/?name=${currentUser}|">Return to main page</a></p>
 </body>
 
 </html>

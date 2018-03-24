@@ -27,14 +27,14 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+//import javax.servlet.http.HttpServletResponse;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Collection;
+//import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
@@ -53,35 +53,15 @@ public class Main {
     public static void main(String[] args) throws Exception {
         SpringApplication.run(Main.class, args);
     }
-
-    private Map<String, String> parseHttpRequestParams(String queryString) {
-        Map<String, String> paramMap = new HashMap<String, String>();
-
-        if (queryString == null) {
-            return paramMap;
-        }
-
-        Scanner paramScanner = new Scanner(queryString);
-        paramScanner.useDelimiter("[=&]");
-
-        while (paramScanner.hasNext()) {
-            String key = paramScanner.next();
-            String value = paramScanner.next();
-
-            paramMap.put(key, value);
-        }
-
-        paramScanner.close();
-
-        return paramMap;
-    }
+    
+    //////////////////// The YASIAS main page
 
     @RequestMapping("/")
     String index(Map<String, Object> model, HttpServletRequest request) {
         String queryString = request.getQueryString(); // Ex. "name=Harry" (without the quotes)
         Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
 
-        String currentUser = httpRqstVarsMap.get("name"); // null if there was no name param
+        String currentUser = getCurrentUser(httpRqstVarsMap);
         model.put("currentUser", currentUser);
 
         try (Connection connection = dataSource.getConnection()) {
@@ -91,17 +71,43 @@ public class Main {
 
             ArrayList<String> output = new ArrayList<String>();
             while (rs.next()) {
-                output.add(rs.getString("Name"));
+                output.add(rs.getString(DbColNames.USERS_NAME));
             }
             model.put("names", output);
         } catch (Exception e) {
-            model.put("message", "error in try/catch of root; " + e.getMessage());
+            model.put("message", "error in try/catch of root (users section); " + e.getMessage());
+
+            return "error";
+        }
+
+        try (Connection connection = dataSource.getConnection()) {
+            Statement stmt = connection.createStatement();
+
+            ResultSet rs = stmt.executeQuery("SELECT * FROM Questions;");
+
+            ArrayList<Question> questions = new ArrayList<Question>();
+            while (rs.next()) {
+                Question currentQuestion = new Question();
+                
+                currentQuestion.id = rs.getInt(DbColNames.QUESTION_ID);
+                currentQuestion.title = rs.getString(DbColNames.QUESTION_TITLE);
+                currentQuestion.author = rs.getString(DbColNames.QUESTION_AUTHOR);
+                currentQuestion.timestamp = rs.getTimestamp(DbColNames.QUESTION_TIMESTAMP);
+                currentQuestion.score = rs.getInt(DbColNames.QUESTION_SCORE);
+                
+                questions.add(currentQuestion);
+            }
+            model.put("questions", questions);
+        } catch (Exception e) {
+            model.put("message", "error in try/catch of root (users section); " + e.getMessage());
 
             return "error";
         }
 
         return "index";
     }
+    
+    //////////////////// Methods related to YASIAS questions
 
     @RequestMapping("/ask")
     String ask(Map<String, Object> model, HttpServletRequest request) {
@@ -109,12 +115,8 @@ public class Main {
 
         Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
         Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
-        Collection<String> queryValues = httpRqstVarsMap.values();
 
-        String currentUser = httpRqstVarsMap.get("name"); // null if there was no name param
-        if(currentUser == null) {
-            currentUser = "anonymous";
-        }
+        String currentUser = getCurrentUser(httpRqstVarsMap);
         model.put("currentUser", currentUser);
         
         boolean hasTitle = httpRqstKeys.contains("title");
@@ -156,27 +158,33 @@ public class Main {
     }
 
     @RequestMapping("/question")
-    String question(Map<String, Object> model, HttpServletRequest request, HttpServletResponse response) {
+    String question(Map<String, Object> model, HttpServletRequest request) {
         String queryString = request.getQueryString(); // Ex. "upvote=true&foo=bar" (without the quotes)
         model.put("queryString", queryString);
 
         Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
         Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
-        Collection<String> queryValues = httpRqstVarsMap.values();
+
+        String currentUser = getCurrentUser(httpRqstVarsMap);
+        model.put("currentUser", currentUser);
 
         if (httpRqstKeys.contains("id")) {
+            model.put("qid", httpRqstVarsMap.get("id"));
+            
             try (Connection connection = dataSource.getConnection()) {
                 Statement stmt = connection.createStatement();
 
                 ResultSet rs = stmt.executeQuery("SELECT * FROM Questions WHERE Id=" + httpRqstVarsMap.get("id"));
 
                 while (rs.next()) {
-                    model.put("author", rs.getString("Author"));
-                    model.put("title", rs.getString("Title"));
-                    model.put("body", rs.getString("Body"));
-                    model.put("timestamp", rs.getString("Timestamp"));
-                    model.put("score", rs.getString("Score"));
+                    model.put("author", rs.getString(DbColNames.QUESTION_AUTHOR));
+                    model.put("title", rs.getString(DbColNames.QUESTION_TITLE));
+                    model.put("body", rs.getString(DbColNames.QUESTION_BODY));
+                    model.put("timestamp", rs.getString(DbColNames.QUESTION_TIMESTAMP));
+                    model.put("score", rs.getString(DbColNames.QUESTION_SCORE));
                 }
+                
+                // TODO: get all applicable answers, put them in a List<Answer>, and include the list in the model
             } catch (Exception e) {
                 model.put("message", "try/catch error in question() " + e.getMessage());
 
@@ -188,22 +196,107 @@ public class Main {
             // stmt.executeUpdate("UPDATE questions WHERE id=blah"); // DB query for upvoting
         }
 
+        if (httpRqstKeys.contains("downvote")) {
+            // stmt.executeUpdate("UPDATE questions WHERE id=blah"); // DB query for downvoting
+        }
+
         return "question";
     }
+    
+    @RequestMapping("/questionedit")
+    String questionedit(Map<String, Object> model, HttpServletRequest request) {
+        String queryString = request.getQueryString();
+        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
+        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
 
-    // First step: Add new RequestMapping annotation for a URL, an associated method,
-    // and an .html page under src/main/resources/templates with the returned name
-    // See "db" for a more complex example that accesses the DB and modifies the model and view
-    @RequestMapping("/test")
-    String test() {
-        return "test";
+        String currentUser = getCurrentUser(httpRqstVarsMap);
+        model.put("currentUser", currentUser);
+
+        if (httpRqstKeys.contains("newdata")) {
+            model.put("qid", httpRqstVarsMap.get("id"));
+            
+            String sql = "";
+            
+            try (Connection connection = dataSource.getConnection()) {
+                Statement stmt = connection.createStatement();
+                
+                StringBuilder sqlBuilder = new StringBuilder();
+                sqlBuilder.append("UPDATE Questions SET ");
+                sqlBuilder.append("Title='" + httpRqstVarsMap.get("title") + "', ");
+                sqlBuilder.append("Body='" + httpRqstVarsMap.get("body") + "', ");
+                sqlBuilder.append("Author='" + httpRqstVarsMap.get("author") + "', ");
+                sqlBuilder.append("Timestamp='now' ");
+                sqlBuilder.append("WHERE Id=" + httpRqstVarsMap.get("id"));
+                sql = sqlBuilder.toString();
+                
+                stmt.executeUpdate(sql);
+            } catch (Exception e) {
+                model.put("message", "try/catch error in questionedit() when updating DB; SQL was " + sql + " --- " + e.getMessage());
+
+                return "error";
+            }
+        }
+
+        if (httpRqstKeys.contains("id")) {
+            model.put("qid", httpRqstVarsMap.get("id"));
+            
+            try (Connection connection = dataSource.getConnection()) {
+                Statement stmt = connection.createStatement();
+
+                ResultSet rs = stmt.executeQuery("SELECT * FROM Questions WHERE Id=" + httpRqstVarsMap.get("id"));
+
+                while (rs.next()) {
+                    model.put("title", rs.getString(DbColNames.QUESTION_TITLE));
+                    model.put("body", rs.getString(DbColNames.QUESTION_BODY));
+                }
+            } catch (Exception e) {
+                model.put("message", "try/catch error in questionedit() " + e.getMessage());
+
+                return "error";
+            }
+        }
+        
+        return "questionedit";
     }
+    
+    @RequestMapping("/questiondelete")
+    String questiondelete(Map<String, Object> model, HttpServletRequest request) {
+        String queryString = request.getQueryString();
+        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
+        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
+
+        String currentUser = getCurrentUser(httpRqstVarsMap);
+        model.put("currentUser", currentUser);
+
+        if (httpRqstKeys.contains("id")) {
+            int sqlReturnValue = -2;
+            try (Connection connection = dataSource.getConnection()) {
+                Statement stmt = connection.createStatement();
+
+                sqlReturnValue = stmt.executeUpdate("DELETE FROM Questions WHERE Id = '" + httpRqstVarsMap.get("id") + "';");
+                // TODO: handle DB errors, e.g. non-existant ID
+            } catch (Exception e) {
+                model.put("message", "try/catch error in questiondelete(); SQL return value is " + sqlReturnValue + " (default is -2); " + e.getMessage());
+
+                return "error";
+            }
+
+            model.put("removedQuestionId", httpRqstVarsMap.get("id"));
+        }        
+        
+        return "questiondelete";
+    }
+    
+    //////////////////// Methods related to YASIAS users
 
     @RequestMapping("/useradd")
     String useradd(Map<String, Object> model, HttpServletRequest request) {
         String queryString = request.getQueryString(); // Ex. "upvote=true&foo=bar" (without the quotes)
         Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
         Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
+
+        String currentUser = getCurrentUser(httpRqstVarsMap);
+        model.put("currentUser", currentUser);
 
         if (httpRqstKeys.contains("newusername")) {
             int sqlReturnValue = -5;
@@ -230,6 +323,9 @@ public class Main {
         Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
         Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
 
+        String currentUser = getCurrentUser(httpRqstVarsMap);
+        model.put("currentUser", currentUser);
+
         if (httpRqstKeys.contains("name")) {
             int sqlReturnValue = -3;
             try (Connection connection = dataSource.getConnection()) {
@@ -248,6 +344,64 @@ public class Main {
 
         return "userdelete";
     }
+    
+    //////////////////// YASIAS helper methods
+
+    private Map<String, String> parseHttpRequestParams(String queryString) {
+        Map<String, String> paramMap = new HashMap<String, String>();
+
+        if (queryString == null) {
+            return paramMap;
+        }
+
+        Scanner paramScanner = new Scanner(queryString);
+        paramScanner.useDelimiter("[=&]");
+
+        while (paramScanner.hasNext()) {
+            String key = paramScanner.next();
+            String value = paramScanner.next();
+
+            paramMap.put(key, value);
+        }
+
+        paramScanner.close();
+
+        return paramMap;
+    }
+
+    private String getCurrentUser(Map<String, String> httpRqstVarsMap) {
+        String currentUser = httpRqstVarsMap.get("name"); // null if there was no name param
+        if(currentUser == null) {
+            currentUser = "anonymous";
+        }
+        
+        return currentUser;
+    }
+
+    // tl;dr on Hikari:
+    // Came with the example code, is a third-party open-source drop-in connection pool solution
+    // Ref 1: https://brettwooldridge.github.io/HikariCP/
+    // Ref 2: https://github.com/brettwooldridge/HikariCP
+    @Bean
+    public DataSource dataSource() throws SQLException {
+        if (dbUrl == null || dbUrl.isEmpty()) {
+            return new HikariDataSource();
+        } else {
+            HikariConfig config = new HikariConfig();
+            config.setJdbcUrl(dbUrl);
+            return new HikariDataSource(config);
+        }
+    }
+    
+    //////////////////// Starter or debugging code not integral to YASIAS
+
+    // First step: Add new RequestMapping annotation for a URL, an associated method,
+    // and an .html page under src/main/resources/templates with the returned name
+    // See "db" for a more complex example that accesses the DB and modifies the model and view
+    @RequestMapping("/test")
+    String test() {
+        return "test";
+    }
 
     @RequestMapping("/debug")
     String debug(Map<String, Object> model) {
@@ -258,7 +412,7 @@ public class Main {
             }
             
             // model.put("message", "Hello, world! dbUrl: " + dbUrl); // The first arg must be "message" because the error page uses <p th:text="${message}">
-            model.put("message", new DebugClass());
+            //model.put("message", new DebugClass());
         } catch (SQLException e) {
             model.put("message", e.getMessage() + " --- dbUrl: " + dbUrl);
 
@@ -292,23 +446,9 @@ public class Main {
             return "error";
         }
     }
-
-    // tl;dr on Hikari:
-    // Came with the example code, is a third-party open-source drop-in connection pool solution
-    // Ref 1: https://brettwooldridge.github.io/HikariCP/
-    // Ref 2: https://github.com/brettwooldridge/HikariCP
-    @Bean
-    public DataSource dataSource() throws SQLException {
-        if (dbUrl == null || dbUrl.isEmpty()) {
-            return new HikariDataSource();
-        } else {
-            HikariConfig config = new HikariConfig();
-            config.setJdbcUrl(dbUrl);
-            return new HikariDataSource(config);
-        }
-    }
 }
 
+/*
 class DebugClass {
     private String property1 = "This is property one";
     public String property2 = "Here's the second property";
@@ -322,3 +462,4 @@ class DebugClass {
         return "Custom toString() for DebugClass [property1=" + property1 + ", property2=" + property2 + "]";
     }
 }
+*/

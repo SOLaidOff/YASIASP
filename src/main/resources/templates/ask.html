@@ -10,16 +10,19 @@
 
   <form method="get">
     <input type="hidden" name="author" value="anonymous" th:value="${currentUser}">
-    <label for="question">Your question: </label><textarea name="body" required maxlength="30000">Your question body here</textarea><!-- Body -->
+    <label for="question">Your question: </label>
+    <textarea name="body" required maxlength="30000" rows="30" cols="80">Your question body here</textarea><!-- Body -->
     <br />
-    <label for="tags">Tags for this question: </label><input type="text" name="tags" required><!-- Tags -->
+    <label for="tags">Tags for this question: </label>
+    <input type="text" name="tags" required><!-- Tags -->
     <br />
-    <label for="title">Summarize your question in a short title (max 50 chars): </label><input type="text" name="title" required maxlength="50"><!-- Title -->
+    <label for="title">Summarize your question in a short title (max 50 chars): </label>
+    <input type="text" name="title" required maxlength="50"><!-- Title -->
     <br />
     <input type="submit" value="Ask your question!">
   </form>
 
-  <p>Done asking? <a href="/">Return to main page</a>
+  <p>Done asking? <a href="/" th:href="|/?name=${currentUser}|">Return to main page</a>
 
 </body>
 </html>

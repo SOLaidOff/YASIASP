@@ -1,27 +1,21 @@
 <!DOCTYPE html>
-<!-- Commenting out original Thymeleaf-enabled HTML tag as test -->
-<!-- <html xmlns:th="http://www.thymeleaf.org" th:replace="~{fragments/layout :: layout (~{::body},'index')}"> -->
 <html xmlns:th="http://www.thymeleaf.org">
 
 <head>
-<title>Yet Another "Stack in a Semester" Project - [TODO: replace this with question title]</title>
+<title th:text="|Yet Another Stack in a Semester Project - ${title}|">Yet Another "Stack in a Semester" Project - [question title]</title>
 </head>
 
 <body>
 
+  <p>Done? <a href="/" th:href="|/?name=${currentUser}|">Return to main page</a>
+  
+  <hr />
+
 <div><!-- Div enclosing entire question -->
 
-  <form method="get">
-    <input type="hidden" name="upvote" value="true"> <!-- Results in /question?upvote=true -->
-    <input type="submit" value="Upvote"><!-- Upvote button -->
-  </form>
-  <span th:text="${score}">Question score</span>
-  <form method="get">
-    <input type="hidden" name="downvote" value="true">
-    <input type="submit" value="Downvote"><!-- Downvote button -->
-  </form>
+  <span th:text="|Score: ${score}|">[question score]</span>
 
-  <h1 th:text="${title}">Question title text goes here.</h1>
+  <h1 th:text="${title}">[question title]</h1>
 
   <div>
   Question tags go here. [java] [sql] [heroku]
@@ -37,7 +31,20 @@
   <br />
   <span th:text="${timestamp}">timestamp</span>
 
-  <a href="editquestion" th:href="|/editquestion?id=${id}|">Edit this question</a>
+  <!-- Voting buttons -->  
+  <form method="get"> <!-- Results in /question?upvote=true -->
+    <input type="hidden" name="id" value="-1" th:value="${qid}">
+    <input type="hidden" name="upvote" value="true">
+    <input type="submit" value="Upvote">
+  </form>
+  <form method="get"> <!-- Results in /question?downvote=true -->
+    <input type="hidden" name="id" value="-1" th:value="${qid}">
+    <input type="hidden" name="downvote" value="true">
+    <input type="submit" value="Downvote">
+  </form>
+
+  <p><a href="questionedit" th:href="|/questionedit?name=${currentUser}&id=${qid}|">Edit this question</a></p>
+  <p><a href="questiondelete" th:href="|/questiondelete?name=${currentUser}&id=${qid}|">Delete this question</a></p>
 
   <ul>
   <li>Comments on question, if any, go here
@@ -70,7 +77,7 @@
 Answer body text goes here. Lorem ipsum dolor sit amet...
 </div>
 
-<a href="editanswer">Edit this answer</a>
+<a href="/answeredit" th:href="|/answeredit?name=${currentUser}|">Edit this answer</a>
 
 <ul>
 <li>Comments on answer, if any, go here

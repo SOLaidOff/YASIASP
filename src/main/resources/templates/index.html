@@ -4,7 +4,7 @@
 <html xmlns:th="http://www.thymeleaf.org"> <!-- Namespace not technically required, but it does eliminate IDE warnings -->
 
 <head>
-<title>Yet Another "Stack in a Semester" Project</title>
+<title>Yet Another "Stack in a Semester" Project - main page</title>
 </head>
 
 <body>
@@ -16,17 +16,17 @@
 
 <div style="width: 48%; float: left; border: 1px solid black; margin: 1px;">
   <!-- IF NO USERNAME SELECTED  -->
-  <div th:if="${currentUser} == null">
+  <div th:if="${currentUser} == 'anonymous'">
     <h2>Welcome, guest!</h2>
   </div>
   <!-- ELSE -->
-  <div th:unless="${currentUser} == null">
+  <div th:unless="${currentUser} == 'anonymous'">
     <h2 th:text="|Hello, you are using the system as ${currentUser}.|">[welcome and user ID text]</h2>
   </div>
   
-  Want to <a href="useradd">add a new user</a>?
+  Want to <a href="/useradd" th:href="|/useradd?name=${currentUser}|">add a new user</a>?
   
-  <div th:unless="${currentUser} == null">
+  <div th:unless="${currentUser} == 'anonymous'">
     Or <a href="userdelete" th:href="|/userdelete?name=${currentUser}|">delete your account</a>?
   </div>
   
@@ -41,42 +41,30 @@
 
 <h2>This is a Q&#38;A site, so...</h2>
 
-Want to <a href="/ask" th:href="|/ask?name=${name}|">ask a new question</a>?
+Want to <a href="/ask" th:href="|/ask?name=${currentUser}|">ask a new question</a>?
 
 <h2>Existing questions</h2>
 
 <table>
-<tr>
-<th>Title</th>
-<th>Tags</th>
-<th>Timestamp</th>
-<th>Score</th>
-</tr>
+  <tr>
+    <th>Title</th>
+    <th>Tags</th>
+    <th>Timestamp</th>
+    <th>Score</th>
+  </tr>
 
-<tr>
-<td>TODO</td>
-<td>TODO</td>
-<td>TODO</td>
-<td>TODO</td>
-</tr>
-<tr>
-<td>TODO</td>
-<td>TODO</td>
-<td>TODO</td>
-<td>TODO</td>
-</tr>
-<tr>
-<td>TODO</td>
-<td>TODO</td>
-<td>TODO</td>
-<td>TODO</td>
-</tr>
+  <tr th:each="question : ${questions}">
+    <td><a href="/question" th:href="|/question?id=${question.id}&name=${currentUser}|" th:text="${question.title}">[title]</a></td>
+    <td>[tags]</td>
+    <td th:text="${question.timestamp}">[timestamp]</td>
+    <td th:text="${question.score}">[score]</td>
+  </tr>
 </table>
 </div>
 
 </div>
 
-<p style="clear: both;">Note for potential future employers: I know there are tons of bad web application practices here. This was written for a databases class, not a web app or software development class, so there are lots of shortcuts I would never use in real production.
+<p style="clear: both;">Note for potential future employers: I know there are tons of bad web application practices here. This was written for a databases class, not a web app or software development class, and the grade was entirely for DB design and connectivity.
 
 </body>
 </html>
