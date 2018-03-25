@@ -2,15 +2,29 @@
 <html xmlns:th="http://www.thymeleaf.org">
 
 <head>
-<title>Yet Another "Stack in a Semester" Project - Edit Answer [TODO: insert some identifier for answer]</title>
+<title>Yet Another "Stack in a Semester" Project - Edit Answer</title>
 </head>
 
 <body>
+  <h1>Edit an existing YASIAS answer</h1>
+  
+  <div th:unless="${submitted} == null">
+    <h2>Your submission was successful. You may submit another edit to the same answer below, if you wish.</h2>
+  </div>
 
-<form>
-<input type="textarea"><!-- Body -->
-<input type="submit">
-</form>
+  <form method="get">
+    <input type="hidden" name="id" value="-1" th:value="${aid}">
+    <input type="hidden" name="qid" value="-1" th:value="${qid}">
+    <input type="hidden" name="newdata" value="true">
+    <input type="hidden" name="name" value="currentUserName" th:value="${currentUser}">
 
+    <input type="hidden" name="author" value="anonymous" th:value="${currentUser}">
+    <label for="answer">The answer: </label>
+    <textarea name="body" required maxlength="30000" rows="30" cols="80" th:text="${body}">Your answer body here</textarea><!-- Body -->
+    <br />
+    <input type="submit" value="Update this answer!">
+  </form>
+
+  <p>Done with edits? <a href="/question" th:href="|/question?id=${qid}|">Return to the question</a> or <a href="/" th:href="|/?name=${currentUser}|">return to main page</a>
 </body>
 </html>

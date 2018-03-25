@@ -13,7 +13,7 @@
 
 <div><!-- Div enclosing entire question -->
 
-  <span th:text="|Score: ${score}|">[question score]</span>
+  <span th:text="|Score: ${score}|">[question's score]</span>
 
   <h1 th:text="${title}">[question title]</h1>
 
@@ -35,20 +35,24 @@
   <form method="get"> <!-- Results in /question?upvote=true -->
     <input type="hidden" name="id" value="-1" th:value="${qid}">
     <input type="hidden" name="upvote" value="true">
-    <input type="submit" value="Upvote">
+    <input type="submit" value="Upvote this question">
   </form>
   <form method="get"> <!-- Results in /question?downvote=true -->
     <input type="hidden" name="id" value="-1" th:value="${qid}">
     <input type="hidden" name="downvote" value="true">
-    <input type="submit" value="Downvote">
+    <input type="submit" value="Downvote this question">
   </form>
+  
+  <p><span th:text="|This question was last modified by ${author} at ${timestamp}.|">This question was last modified by [name] at [time].</span>
 
-  <p><a href="questionedit" th:href="|/questionedit?name=${currentUser}&id=${qid}|">Edit this question</a></p>
-  <p><a href="questiondelete" th:href="|/questiondelete?name=${currentUser}&id=${qid}|">Delete this question</a></p>
+  <p><a href="/questionedit" th:href="|/questionedit?name=${currentUser}&id=${qid}|">Edit this question</a></p>
+  <p><a href="/questiondelete" th:href="|/questiondelete?name=${currentUser}&id=${qid}|">Delete this question</a></p>
 
   <ul>
   <li>Comments on question, if any, go here
   </ul>
+  
+  <p><a href="/answer" th:href="|/answer?name=${currentUser}&qid=${qid}&questionTitle=${title}|">Answer this question</a></p>
 
 </div><!-- Div enclosing entire question -->
 
@@ -61,27 +65,38 @@
 <!-- TODO: use Thymeleaf to automatically order these -->
 
 <!-- FOR EACH ANSWER: -->
-<div><!-- Div enclosing entire answer -->
+<div th:each="answer : ${answers}"><!-- Div enclosing entire answer -->
 
-<form method="get">
-<input type="hidden" name="upvote" value="true">
-<input type="submit" value="Upvote"><!-- Upvote button -->
-</form>
-<span>Answer score</span>
-<form method="get">
-<input type="hidden" name="downvote" value="true">
-<input type="submit" value="Downvote"><!-- Downvote button -->
-</form>
+  <span th:text="|Score: ${answer.score}|">[answer's score]</span>
 
-<div>
-Answer body text goes here. Lorem ipsum dolor sit amet...
-</div>
+  <br />
+  <div th:utext="${answer.body}">
+  Answer body text goes here. Lorem ipsum dolor sit amet...
+  </div>
+  <br />
 
-<a href="/answeredit" th:href="|/answeredit?name=${currentUser}|">Edit this answer</a>
+  <!-- Voting buttons -->  
+  <form method="get">
+    <input type="hidden" name="answerId" value="-1" th:value="${answer.id}">
+    <input type="hidden" name="upvote" value="true">
+    <input type="submit" value="Upvote the above answer">
+  </form>
+  <form method="get">
+    <input type="hidden" name="answerId" value="-1" th:value="${answer.id}">
+    <input type="hidden" name="downvote" value="true">
+    <input type="submit" value="Downvote the above answer">
+  </form>
+  
+  <p><span th:text="|This answer was last modified by ${answer.author} at ${answer.timestamp}.|">This question was last modified by [name] at [time].</span>
+  
+  <p><a href="/answeredit" th:href="|/answeredit?name=${currentUser}&id=${answer.id}&qid=${qid}|">Edit this answer</a></p>
+  <p><a href="/answerdelete" th:href="|/answerdelete?name=${currentUser}&id=${answer.id}&qid=${qid}|">Delete this answer</a></p>
 
-<ul>
-<li>Comments on answer, if any, go here
-</ul>
+  <ul>
+    <li>Comments on answer, if any, go here
+  </ul>
+  
+  <hr />
 
 </div><!-- Div enclosing entire answer -->
 

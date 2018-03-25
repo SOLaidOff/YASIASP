@@ -36,6 +36,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 //import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
@@ -69,7 +70,7 @@ public class Main {
 
             ResultSet rs = stmt.executeQuery("SELECT Name FROM Users;");
 
-            ArrayList<String> output = new ArrayList<String>();
+            List<String> output = new ArrayList<String>();
             while (rs.next()) {
                 output.add(rs.getString(DbColNames.USERS_NAME));
             }
@@ -85,7 +86,7 @@ public class Main {
 
             ResultSet rs = stmt.executeQuery("SELECT * FROM Questions;");
 
-            ArrayList<Question> questions = new ArrayList<Question>();
+            List<Question> questions = new ArrayList<Question>();
             while (rs.next()) {
                 Question currentQuestion = new Question();
                 
@@ -174,6 +175,7 @@ public class Main {
             try (Connection connection = dataSource.getConnection()) {
                 Statement stmt = connection.createStatement();
 
+                // Get info on the current question
                 ResultSet rs = stmt.executeQuery("SELECT * FROM Questions WHERE Id=" + httpRqstVarsMap.get("id"));
 
                 while (rs.next()) {
@@ -184,7 +186,24 @@ public class Main {
                     model.put("score", rs.getString(DbColNames.QUESTION_SCORE));
                 }
                 
-                // TODO: get all applicable answers, put them in a List<Answer>, and include the list in the model
+                // Get info on any/all answers to the current question
+                List<Answer> answers = new ArrayList<Answer>();
+                rs = stmt.executeQuery("SELECT * FROM Answers WHERE Question =" + httpRqstVarsMap.get("id"));
+
+                while (rs.next()) {
+                    Answer currentAnswer = new Answer();
+
+                    currentAnswer.id = rs.getInt(DbColNames.ANSWER_ID);
+                    currentAnswer.author = rs.getString(DbColNames.ANSWER_AUTHOR);
+                    currentAnswer.question = rs.getInt(DbColNames.ANSWER_QUESTION);
+                    currentAnswer.body = rs.getString(DbColNames.ANSWER_BODY);
+                    currentAnswer.timestamp = rs.getTimestamp(DbColNames.ANSWER_TIMESTAMP);
+                    currentAnswer.score = rs.getInt(DbColNames.ANSWER_SCORE);
+                    
+                    answers.add(currentAnswer);
+                }
+                
+                model.put("answers", answers);
             } catch (Exception e) {
                 model.put("message", "try/catch error in question() " + e.getMessage());
 
@@ -260,7 +279,7 @@ public class Main {
     }
     
     @RequestMapping("/questiondelete")
-    String questiondelete(Map<String, Object> model, HttpServletRequest request) {
+    String questionDelete(Map<String, Object> model, HttpServletRequest request) {
         String queryString = request.getQueryString();
         Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
         Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
@@ -285,6 +304,139 @@ public class Main {
         }        
         
         return "questiondelete";
+    }
+    
+    //////////////////// Methods related to YASIAS answers
+
+    @RequestMapping("/answer")
+    String answer(Map<String, Object> model, HttpServletRequest request) {
+        String queryString = request.getQueryString();
+
+        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
+        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
+
+        String currentUser = getCurrentUser(httpRqstVarsMap);
+        model.put("currentUser", currentUser);
+        
+        String questionTitle = httpRqstVarsMap.get("questionTitle");
+        model.put("questionTitle", questionTitle);
+        String questionId = httpRqstVarsMap.get("qid");
+        model.put("questionId", questionId);
+        
+        if(httpRqstKeys.contains("submission")) {
+            model.put("submitted", "true");
+            
+            try (Connection connection = dataSource.getConnection()) {
+                Statement stmt = connection.createStatement();
+                
+                StringBuilder sqlBuilder = new StringBuilder();
+                sqlBuilder.append("INSERT INTO Answers VALUES (");
+                sqlBuilder.append("DEFAULT"); // auto-incrementing ID
+                sqlBuilder.append(", '");
+                sqlBuilder.append(currentUser); // author
+                sqlBuilder.append("', '");
+                sqlBuilder.append(questionId); // question ID
+                sqlBuilder.append("', '");
+                sqlBuilder.append(httpRqstVarsMap.get("body")); // body
+                sqlBuilder.append("', ");
+                sqlBuilder.append("'now', "); // timestamp
+                sqlBuilder.append("0"); // score
+                sqlBuilder.append(");");
+
+                stmt.executeUpdate(sqlBuilder.toString());
+                // TODO: handle DB errors
+            } catch (Exception e) {
+                model.put("message", "try/catch error in /ask(); " + e.getMessage());
+
+                return "error";
+            }
+        }
+        
+        return "answer";
+    }
+    
+    @RequestMapping("/answeredit")
+    String answerEdit(Map<String, Object> model, HttpServletRequest request) {
+        String queryString = request.getQueryString();
+        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
+        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
+
+        String currentUser = getCurrentUser(httpRqstVarsMap);
+        model.put("currentUser", currentUser);
+
+        model.put("aid", httpRqstVarsMap.get("id"));
+        model.put("qid", httpRqstVarsMap.get("qid"));
+
+        if (httpRqstKeys.contains("newdata")) {
+            model.put("submitted", "true");
+            
+            String sql = "";
+            
+            try (Connection connection = dataSource.getConnection()) {
+                Statement stmt = connection.createStatement();
+                
+                StringBuilder sqlBuilder = new StringBuilder();
+                sqlBuilder.append("UPDATE Answers SET ");
+                sqlBuilder.append("Body='" + httpRqstVarsMap.get("body") + "', ");
+                sqlBuilder.append("Author='" + httpRqstVarsMap.get("author") + "', ");
+                sqlBuilder.append("Timestamp='now' ");
+                sqlBuilder.append("WHERE Id=" + httpRqstVarsMap.get("id"));
+                sql = sqlBuilder.toString();
+                
+                stmt.executeUpdate(sql);
+            } catch (Exception e) {
+                model.put("message", "try/catch error in answeredit() when updating DB; SQL was " + sql + " --- " + e.getMessage());
+
+                return "error";
+            }
+        }
+
+        if (httpRqstKeys.contains("id")) {
+            try (Connection connection = dataSource.getConnection()) {
+                Statement stmt = connection.createStatement();
+
+                ResultSet rs = stmt.executeQuery("SELECT * FROM Answers WHERE Id=" + httpRqstVarsMap.get("id"));
+
+                while (rs.next()) {
+                    model.put("body", rs.getString(DbColNames.ANSWER_BODY));
+                }
+            } catch (Exception e) {
+                model.put("message", "try/catch error in answeredit() " + e.getMessage());
+
+                return "error";
+            }
+        }
+        
+        return "answeredit";
+    }
+    
+    @RequestMapping("/answerdelete")
+    String answerDelete(Map<String, Object> model, HttpServletRequest request) {
+        String queryString = request.getQueryString();
+        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
+        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
+
+        String currentUser = getCurrentUser(httpRqstVarsMap);
+        model.put("currentUser", currentUser);
+
+        model.put("qid", httpRqstVarsMap.get("qid"));
+
+        if (httpRqstKeys.contains("id")) {
+            try (Connection connection = dataSource.getConnection()) {
+                Statement stmt = connection.createStatement();
+
+                stmt.executeUpdate("DELETE FROM Answers WHERE Id = '" + httpRqstVarsMap.get("id") + "';");
+                // TODO: handle DB errors, e.g. non-existant ID
+            } catch (Exception e) {
+                model.put("message", "try/catch error in questiondelete(); " + e.getMessage());
+
+                return "error";
+            }
+
+            model.put("removedAnswerId", httpRqstVarsMap.get("id"));
+        }        
+        
+        return "answerdelete";
     }
     
     //////////////////// Methods related to YASIAS users

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+<title>Yet Another "Stack in a Semester" Project - Answer Question</title>
+</head>
+
+<body>
+  <h1>Answer a YASIAS question</h1>
+  
+  <div th:unless="${submitted} == null">
+    <h2>Your submission was successful. You may submit another answer below, if you wish.</h2>
+  </div>
+  
+  <p><span th:text="|You are answering the question ${questionTitle}|">You are answering the question [question title]</span>
+
+  <form method="get">
+    <input type="hidden" name="submission" value="true">
+    <input type="hidden" name="qid" value="-1" th:value="${questionId}">
+    <input type="hidden" name="questionTitle" value="-1" th:value="${questionTitle}">
+    <input type="hidden" name="author" value="anonymous" th:value="${currentUser}">
+    <label for="answer">Your answer: </label>
+    <textarea name="body" required maxlength="30000" rows="30" cols="80">Your answer body here</textarea><!-- Body -->
+    <br />
+    <input type="submit" value="Answer the question!">
+  </form>
+
+  <p>Done answering? <a href="/" th:href="|/question?name=${currentUser}&id=${questionId}|">Return to question page</a> or <a href="/" th:href="|/?name=${currentUser}|">return to main page</a>
+
+</body>
+</html>
