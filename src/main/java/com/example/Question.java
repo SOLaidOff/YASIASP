@@ -1,6 +1,7 @@
 package com.example;
 
 import java.sql.Timestamp;
+import java.util.Set;
 
 public class Question {
     public int id;
@@ -9,4 +10,6 @@ public class Question {
     public String author;
     public Timestamp timestamp;
     public int score;
+    
+    public Set<String> tags;
 }

@@ -7,8 +7,15 @@
 
 <body>
   <h1>Ask a new question on YASIAS</h1>
+  
+  <div th:unless="${submitted} == null">
+    <h2>Your submission was successful. You may ask another question below, if you wish.</h2>
+    
+    <p>Or, visit <a href="/question" th:href="|/question?id=${newlyAskedQuestionsId}|">the question you just asked</a>.
+  </div>
 
   <form method="get">
+    <input type="hidden" name="submission" value="true">
     <input type="hidden" name="author" value="anonymous" th:value="${currentUser}">
     <label for="question">Your question: </label>
     <textarea name="body" required maxlength="30000" rows="30" cols="80">Your question body here</textarea><!-- Body -->

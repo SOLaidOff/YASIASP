@@ -55,7 +55,7 @@ Want to <a href="/ask" th:href="|/ask?name=${currentUser}|">ask a new question</
 
   <tr th:each="question : ${questions}">
     <td><a href="/question" th:href="|/question?id=${question.id}&name=${currentUser}|" th:text="${question.title}">[title]</a></td>
-    <td>[tags]</td>
+    <td th:text="${question.tags}">[tags]</td>
     <td th:text="${question.timestamp}">[timestamp]</td>
     <td th:text="${question.score}">[score]</td>
   </tr>

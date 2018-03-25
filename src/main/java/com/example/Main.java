@@ -36,6 +36,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 //import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
@@ -83,11 +84,12 @@ public class Main {
 
         try (Connection connection = dataSource.getConnection()) {
             Statement stmt = connection.createStatement();
+            Statement stmt2 = connection.createStatement();
 
             ResultSet rs = stmt.executeQuery("SELECT * FROM Questions;");
 
             List<Question> questions = new ArrayList<Question>();
-            while (rs.next()) {
+            while (rs.next()) { // Essentially "for each question"
                 Question currentQuestion = new Question();
                 
                 currentQuestion.id = rs.getInt(DbColNames.QUESTION_ID);
@@ -95,6 +97,14 @@ public class Main {
                 currentQuestion.author = rs.getString(DbColNames.QUESTION_AUTHOR);
                 currentQuestion.timestamp = rs.getTimestamp(DbColNames.QUESTION_TIMESTAMP);
                 currentQuestion.score = rs.getInt(DbColNames.QUESTION_SCORE);
+                
+                ResultSet rsTags = stmt2.executeQuery("SELECT TagName FROM QuestionTags WHERE QId='" + currentQuestion.id + "';");
+                
+                Set<String> tags = new HashSet<String>();
+                while(rsTags.next()) {
+                    tags.add(rsTags.getString(DbColNames.QUESTION_TAGS_TAGNAME));
+                }
+                currentQuestion.tags = tags;
                 
                 questions.add(currentQuestion);
             }
@@ -120,14 +130,16 @@ public class Main {
         String currentUser = getCurrentUser(httpRqstVarsMap);
         model.put("currentUser", currentUser);
         
+        model.put("submitted", httpRqstVarsMap.get("submission"));
+        
         boolean hasTitle = httpRqstKeys.contains("title");
         boolean hasBody = httpRqstKeys.contains("body");
         boolean hasTags = httpRqstKeys.contains("tags");
         
         if(hasTitle && hasBody && hasTags) {
-            int sqlReturnValue = -7;
-            
             try (Connection connection = dataSource.getConnection()) {
+                // TODO: figure out what this has to do with atomicity
+                
                 Statement stmt = connection.createStatement();
                 
                 StringBuilder sqlBuilder = new StringBuilder();
@@ -144,12 +156,29 @@ public class Main {
                 sqlBuilder.append("0"); // score
                 sqlBuilder.append(");");
 
-                sqlReturnValue = stmt.executeUpdate(sqlBuilder.toString());
+                stmt.executeUpdate(sqlBuilder.toString());
                 // TODO: handle DB errors
                 
-                // TODO: insert tags as well
+                // Get the ID of the just-created question, for tag purposes
+                ResultSet rs = stmt.executeQuery("SELECT Id FROM Questions WHERE Author='" + currentUser + "' AND Title='" + httpRqstVarsMap.get("title") + "' ORDER BY Timestamp DESC LIMIT 1;"); // FIXME this is an approximation; use atomic operation?
+                rs.next();
+                int questionId = rs.getInt("Id");
+                model.put("newlyAskedQuestionsId", questionId);
+                                
+                // Handle tags (get the raw submitted tag string, divide it into individual tags, insert any new ones, associate with current question 
+                String tags = httpRqstVarsMap.get("tags");
+                Scanner tagScanner = new Scanner(tags);
+                tagScanner.useDelimiter("\\+"); // + because of GET operation
+                while(tagScanner.hasNext()) {
+                    String nextTag = tagScanner.next();
+
+                    stmt.executeUpdate("INSERT INTO Tags VALUES ('" + nextTag + "') ON CONFLICT DO NOTHING;");
+                    stmt.executeUpdate("INSERT INTO QuestionTags VALUES ('" + questionId + "', '" + nextTag + "') ON CONFLICT DO NOTHING;");
+                }
+                
+                tagScanner.close();
             } catch (Exception e) {
-                model.put("message", "try/catch error in /ask(); SQL return value is " + sqlReturnValue + " (default is -7); " + e.getMessage());
+                model.put("message", "try/catch error in /ask(); " + e.getMessage());
 
                 return "error";
             }
@@ -174,9 +203,17 @@ public class Main {
             
             try (Connection connection = dataSource.getConnection()) {
                 Statement stmt = connection.createStatement();
+                Statement stmt2 = connection.createStatement();
 
                 // Get info on the current question
                 ResultSet rs = stmt.executeQuery("SELECT * FROM Questions WHERE Id=" + httpRqstVarsMap.get("id"));
+                ResultSet rsTags = stmt2.executeQuery("SELECT TagName FROM QuestionTags WHERE QId='" + httpRqstVarsMap.get("id") + "';");
+                
+                Set<String> tags = new HashSet<String>();
+                while(rsTags.next()) {
+                    tags.add(rsTags.getString(DbColNames.QUESTION_TAGS_TAGNAME));
+                }
+                model.put("tags", tags);
 
                 while (rs.next()) {
                     model.put("author", rs.getString(DbColNames.QUESTION_AUTHOR));
@@ -496,6 +533,10 @@ public class Main {
 
         return "userdelete";
     }
+    
+    //////////////////// Methods related to YASIAS tags
+    
+    
     
     //////////////////// YASIAS helper methods
 
