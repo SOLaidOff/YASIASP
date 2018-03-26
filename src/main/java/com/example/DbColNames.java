@@ -31,9 +31,9 @@ public class DbColNames {
     public static final String USERS_NAME = "Name"; // Primary key
     
     // Votes
-    public static final String VOTES_POSTID = "PostId"; // Primary key, jointly with PostType and Author
-    public static final String VOTES_POSTTYPE = "PostType"; // Primary key, jointly with PostId and Author
-    public static final String VOTES_AUTHOR = "Author"; // Primary key, jointly with PostId and PostType
+    public static final String VOTES_POSTID = "PostId"; // Primary key, jointly with PostType and Voter
+    public static final String VOTES_POSTTYPE = "PostType"; // Primary key, jointly with PostId and Voter
+    public static final String VOTES_VOTER = "Voter"; // Primary key, jointly with PostId and PostType
     public static final String VOTES_TIMESTAMP = "Timestamp";
     public static final String VOTES_VALUE = "Value";
     

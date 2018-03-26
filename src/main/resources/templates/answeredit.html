@@ -22,7 +22,7 @@
     <label for="answer">The answer: </label>
     <textarea name="body" required maxlength="30000" rows="30" cols="80" th:text="${body}">Your answer body here</textarea><!-- Body -->
     <br />
-    <input type="submit" value="Update this answer!">
+    <input type="submit" value="Update this answer">
   </form>
 
   <p>Done with edits? <a href="/question" th:href="|/question?id=${qid}|">Return to the question</a> or <a href="/" th:href="|/?name=${currentUser}|">return to main page</a>

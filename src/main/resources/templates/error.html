@@ -8,9 +8,11 @@
 </head>
 
 <body>
-	<p th:text="${message}">Exception message</p>
-	<p>
-		<a href="/" th:href="|/?name=${currentUser}|">Return to main page</a>
+	<h1 style="color: red;" th:text="${message}">Exception message</h1>
+	
+	<h3><a href="/" th:href="|/?name=${currentUser}|">Return to main page</a></h3>
+	
+	<a href="https://www.xkcd.com/1024/"><img src="/xkcd_1024_error_code.png" /></a>
 </body>
 
 </html>

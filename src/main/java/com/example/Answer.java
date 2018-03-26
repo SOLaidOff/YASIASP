@@ -9,4 +9,6 @@ public class Answer {
     public String author;
     public Timestamp timestamp;
     public int score;
+
+    public String currentUserVote;
 }

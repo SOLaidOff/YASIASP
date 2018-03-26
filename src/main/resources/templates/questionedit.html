@@ -18,12 +18,12 @@
     <textarea name="body" required maxlength="30000" rows="30" cols="80" th:text="${body}">Your question body here</textarea><!-- Body -->
     <br />
     <label for="tags">Tags for this question: </label>
-    <input type="text" name="tags" required><!-- Tags -->
+    <input type="text" name="tags" required th:value="${tags}"><!-- Tags -->
     <br />
     <label for="title">Summarize your question in a short title (max 50 chars): </label>
     <input type="text" name="title" required maxlength="50" th:value="${title}"><!-- Title -->
     <br />
-    <input type="submit" value="Ask your question!">
+    <input type="submit" value="Update this question">
   </form>
 
   <p>Done with edits? <a href="/" th:href="|/?name=${currentUser}|">Return to main page</a>

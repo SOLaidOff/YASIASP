@@ -12,4 +12,5 @@ public class Question {
     public int score;
     
     public Set<String> tags;
+    public String currentUserVote;
 }

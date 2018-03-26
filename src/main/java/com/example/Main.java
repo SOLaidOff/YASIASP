@@ -168,7 +168,7 @@ public class Main {
                 // Handle tags (get the raw submitted tag string, divide it into individual tags, insert any new ones, associate with current question 
                 String tags = httpRqstVarsMap.get("tags");
                 Scanner tagScanner = new Scanner(tags);
-                tagScanner.useDelimiter("\\+"); // + because of GET operation
+                tagScanner.useDelimiter("\\+"); // Delimiter is + because requests are currently GETs
                 while(tagScanner.hasNext()) {
                     String nextTag = tagScanner.next();
 
@@ -190,31 +190,138 @@ public class Main {
     @RequestMapping("/question")
     String question(Map<String, Object> model, HttpServletRequest request) {
         String queryString = request.getQueryString(); // Ex. "upvote=true&foo=bar" (without the quotes)
-        model.put("queryString", queryString);
-
         Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
-        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
 
         String currentUser = getCurrentUser(httpRqstVarsMap);
         model.put("currentUser", currentUser);
+        
+        String currentQuestionId = httpRqstVarsMap.get("id");
+        model.put("qid", currentQuestionId);
 
-        if (httpRqstKeys.contains("id")) {
-            model.put("qid", httpRqstVarsMap.get("id"));
+        // Display the question
+        if (currentQuestionId != null) {
+            // Handle voting
+            boolean isQuestionUpvote = httpRqstVarsMap.get("upvoteQ") != null;
+            boolean isQuestionCancelvote = httpRqstVarsMap.get("cancelvoteQ") != null;
+            boolean isQuestionDownvote = httpRqstVarsMap.get("downvoteQ") != null;
+            boolean isAnswerUpvote = httpRqstVarsMap.get("upvoteA") != null;
+            boolean isAnswerCancelvote = httpRqstVarsMap.get("cancelvoteA") != null;
+            boolean isAnswerDownvote = httpRqstVarsMap.get("downvoteA") != null;
             
+            short voteCount = 0;
+            if(isQuestionUpvote) { voteCount++; }
+            if(isQuestionCancelvote) { voteCount++; }
+            if(isQuestionDownvote) { voteCount++; }
+            if(isAnswerUpvote) { voteCount++; }
+            if(isAnswerCancelvote) { voteCount++; }
+            if(isAnswerDownvote) { voteCount++; }
+            
+            if(voteCount > 1) {
+                model.put("message", "Can't perform multiple vote actions simultaneously.");
+
+                return "error";
+            }
+
+            try (Connection connection = dataSource.getConnection()) {
+                // Determine existing vote status
+                Statement stmt = connection.createStatement();
+
+                if(isQuestionUpvote) {
+                    // If there's an existing downvote, UPDATE; if there's no existing vote, INSERT
+                    StringBuilder sqlBuilder = new StringBuilder();
+
+                    sqlBuilder.append("INSERT INTO Votes VALUES (");
+                    sqlBuilder.append("'" + currentUser + "', "); // Voter
+                    sqlBuilder.append("'question', "); // PostType
+                    sqlBuilder.append(currentQuestionId + ", "); // PostId
+                    sqlBuilder.append("'upvote', "); // Value
+                    sqlBuilder.append("'now'"); // Timestamp
+                    sqlBuilder.append(") ");
+                    sqlBuilder.append("ON CONFLICT (Voter, PostType, PostId) DO UPDATE "); // Existing downvote case; keep voter and post, change value and timestamp
+                    sqlBuilder.append("SET ");
+                    sqlBuilder.append("Value='upvote', ");
+                    sqlBuilder.append("Timestamp='now'");
+                    sqlBuilder.append(";");
+
+                    stmt.executeUpdate(sqlBuilder.toString());
+                } else if(isQuestionCancelvote) {
+                    // Simply remove the existing vote
+                    stmt.executeUpdate("DELETE FROM Votes WHERE Voter='" + currentUser + "' AND PostType='question' AND PostId=" + currentQuestionId + ";");
+                    // FIXME - does not preserve time of deletion
+                } else if(isQuestionDownvote) {
+                    // If there's an existing upvote, UPDATE; if there's no existing vote, INSERT
+                    StringBuilder sqlBuilder = new StringBuilder();
+
+                    sqlBuilder.append("INSERT INTO Votes VALUES (");
+                    sqlBuilder.append("'" + currentUser + "', "); // Voter
+                    sqlBuilder.append("'question', "); // PostType
+                    sqlBuilder.append(currentQuestionId + ", "); // PostId
+                    sqlBuilder.append("'downvote', "); // Value
+                    sqlBuilder.append("'now'"); // Timestamp
+                    sqlBuilder.append(") ");
+                    sqlBuilder.append("ON CONFLICT (Voter, PostType, PostId) DO UPDATE "); // Existing downvote case; keep voter and post, change value and timestamp
+                    sqlBuilder.append("SET ");
+                    sqlBuilder.append("Value='downvote', ");
+                    sqlBuilder.append("Timestamp='now'");
+                    sqlBuilder.append(";");
+
+                    stmt.executeUpdate(sqlBuilder.toString());
+                } else if(isAnswerUpvote) {
+                    // If there's an existing downvote, UPDATE; if there's no existing vote, INSERT
+                    StringBuilder sqlBuilder = new StringBuilder();
+
+                    sqlBuilder.append("INSERT INTO Votes VALUES (");
+                    sqlBuilder.append("'" + currentUser + "', "); // Voter
+                    sqlBuilder.append("'answer', "); // PostType
+                    sqlBuilder.append(httpRqstVarsMap.get("answerId") + ", "); // PostId
+                    sqlBuilder.append("'upvote', "); // Value
+                    sqlBuilder.append("'now'"); // Timestamp
+                    sqlBuilder.append(") ");
+                    sqlBuilder.append("ON CONFLICT (Voter, PostType, PostId) DO UPDATE "); // Existing downvote case; keep voter and post, change value and timestamp
+                    sqlBuilder.append("SET ");
+                    sqlBuilder.append("Value='upvote', ");
+                    sqlBuilder.append("Timestamp='now'");
+                    sqlBuilder.append(";");
+
+                    stmt.executeUpdate(sqlBuilder.toString());
+                } else if(isAnswerCancelvote) {
+                    // Simply remove the existing vote
+                    stmt.executeUpdate("DELETE FROM Votes WHERE Voter='" + currentUser + "' AND PostType='answer' AND PostId=" + httpRqstVarsMap.get("answerId") + ";");
+                    // FIXME - does not preserve time of deletion
+                } else if(isAnswerDownvote) {
+                    // If there's an existing upvote, UPDATE; if there's no existing vote, INSERT
+                    StringBuilder sqlBuilder = new StringBuilder();
+
+                    sqlBuilder.append("INSERT INTO Votes VALUES (");
+                    sqlBuilder.append("'" + currentUser + "', "); // Voter
+                    sqlBuilder.append("'answer', "); // PostType
+                    sqlBuilder.append(httpRqstVarsMap.get("answerId") + ", "); // PostId
+                    sqlBuilder.append("'downvote', "); // Value
+                    sqlBuilder.append("'now'"); // Timestamp
+                    sqlBuilder.append(") ");
+                    sqlBuilder.append("ON CONFLICT (Voter, PostType, PostId) DO UPDATE "); // Existing downvote case; keep voter and post, change value and timestamp
+                    sqlBuilder.append("SET ");
+                    sqlBuilder.append("Value='downvote', ");
+                    sqlBuilder.append("Timestamp='now'");
+                    sqlBuilder.append(";");
+
+                    stmt.executeUpdate(sqlBuilder.toString());
+                }
+            } catch (Exception e) {
+                model.put("message", "Exception in question() - vote processing logic " + e.getMessage());
+
+                return "error";
+            }
+            
+            // Done with vote handling, get the rest of the post info
             try (Connection connection = dataSource.getConnection()) {
                 Statement stmt = connection.createStatement();
                 Statement stmt2 = connection.createStatement();
+                Statement stmt3 = connection.createStatement();
 
-                // Get info on the current question
-                ResultSet rs = stmt.executeQuery("SELECT * FROM Questions WHERE Id=" + httpRqstVarsMap.get("id"));
-                ResultSet rsTags = stmt2.executeQuery("SELECT TagName FROM QuestionTags WHERE QId='" + httpRqstVarsMap.get("id") + "';");
+                // Get basic info on the current question
+                ResultSet rs = stmt.executeQuery("SELECT * FROM Questions WHERE Id=" + currentQuestionId);
                 
-                Set<String> tags = new HashSet<String>();
-                while(rsTags.next()) {
-                    tags.add(rsTags.getString(DbColNames.QUESTION_TAGS_TAGNAME));
-                }
-                model.put("tags", tags);
-
                 while (rs.next()) {
                     model.put("author", rs.getString(DbColNames.QUESTION_AUTHOR));
                     model.put("title", rs.getString(DbColNames.QUESTION_TITLE));
@@ -223,9 +330,29 @@ public class Main {
                     model.put("score", rs.getString(DbColNames.QUESTION_SCORE));
                 }
                 
+                // Get info on the question's tags
+                ResultSet rsTags = stmt2.executeQuery("SELECT TagName FROM QuestionTags WHERE QId='" + currentQuestionId + "';");
+                
+                Set<String> tags = new HashSet<String>();
+                while(rsTags.next()) {
+                    tags.add(rsTags.getString(DbColNames.QUESTION_TAGS_TAGNAME));
+                }
+                model.put("tags", tags);
+
+                // Get info on the question's votes, with respect to the current user
+                ResultSet rsVotes = stmt3.executeQuery("SELECT Value FROM Votes WHERE Voter='" + currentUser + "' AND PostType='question' AND PostId='" + currentQuestionId + "';");
+                String existingQVote = "novote";
+                while(rsVotes.next()) {
+                    existingQVote = rsVotes.getString(DbColNames.VOTES_VALUE);
+                    if(existingQVote == null) {
+                        existingQVote = "novote";
+                    }
+                }
+                model.put("existingQVote", existingQVote);
+                
                 // Get info on any/all answers to the current question
                 List<Answer> answers = new ArrayList<Answer>();
-                rs = stmt.executeQuery("SELECT * FROM Answers WHERE Question =" + httpRqstVarsMap.get("id"));
+                rs = stmt.executeQuery("SELECT * FROM Answers WHERE Question =" + currentQuestionId);
 
                 while (rs.next()) {
                     Answer currentAnswer = new Answer();
@@ -236,6 +363,17 @@ public class Main {
                     currentAnswer.body = rs.getString(DbColNames.ANSWER_BODY);
                     currentAnswer.timestamp = rs.getTimestamp(DbColNames.ANSWER_TIMESTAMP);
                     currentAnswer.score = rs.getInt(DbColNames.ANSWER_SCORE);
+
+                    // Get info on the answer's votes, with respect to the current user
+                    rsVotes = stmt3.executeQuery("SELECT Value FROM Votes WHERE Voter='" + currentUser + "' AND PostType='answer' AND PostId='" + rs.getInt(DbColNames.ANSWER_ID) + "';");
+                    String existingAVote = "novote";
+                    while(rsVotes.next()) {
+                        existingAVote = rsVotes.getString(DbColNames.VOTES_VALUE);
+                        if(existingAVote == null) {
+                            existingAVote = "novote";
+                        }
+                    }
+                    currentAnswer.currentUserVote = existingAVote;
                     
                     answers.add(currentAnswer);
                 }
@@ -246,14 +384,10 @@ public class Main {
 
                 return "error";
             }
-        }
+        } else {
+            model.put("message", "Tried to view a question but no question ID was provided.");
 
-        if (httpRqstKeys.contains("upvote")) {
-            // stmt.executeUpdate("UPDATE questions WHERE id=blah"); // DB query for upvoting
-        }
-
-        if (httpRqstKeys.contains("downvote")) {
-            // stmt.executeUpdate("UPDATE questions WHERE id=blah"); // DB query for downvoting
+            return "error";
         }
 
         return "question";
@@ -267,10 +401,12 @@ public class Main {
 
         String currentUser = getCurrentUser(httpRqstVarsMap);
         model.put("currentUser", currentUser);
+        
+        String currentQuestionId = httpRqstVarsMap.get("id");
+        model.put("qid", currentQuestionId);
 
+        // An edited question has been submitted
         if (httpRqstKeys.contains("newdata")) {
-            model.put("qid", httpRqstVarsMap.get("id"));
-            
             String sql = "";
             
             try (Connection connection = dataSource.getConnection()) {
@@ -282,34 +418,66 @@ public class Main {
                 sqlBuilder.append("Body='" + httpRqstVarsMap.get("body") + "', ");
                 sqlBuilder.append("Author='" + httpRqstVarsMap.get("author") + "', ");
                 sqlBuilder.append("Timestamp='now' ");
-                sqlBuilder.append("WHERE Id=" + httpRqstVarsMap.get("id"));
+                sqlBuilder.append("WHERE Id=" + currentQuestionId);
                 sql = sqlBuilder.toString();
                 
                 stmt.executeUpdate(sql);
+                
+                // Update tags: simple (if inelegant) solution is to remove all tags for the Q and then add the new ones
+                stmt.executeUpdate("DELETE FROM QuestionTags WHERE QId='" + currentQuestionId + "';");
+
+                // Read incoming tags and handle them
+                String tags = httpRqstVarsMap.get("tags");
+                Scanner tagScanner = new Scanner(tags);
+                tagScanner.useDelimiter("\\+"); // Delimiter is + because requests are currently GETs
+                while(tagScanner.hasNext()) {
+                    String nextTag = tagScanner.next();
+
+                    stmt.executeUpdate("INSERT INTO Tags VALUES ('" + nextTag + "') ON CONFLICT DO NOTHING;");
+                    stmt.executeUpdate("INSERT INTO QuestionTags VALUES ('" + currentQuestionId + "', '" + nextTag + "') ON CONFLICT DO NOTHING;");
+                }
+                tagScanner.close();
             } catch (Exception e) {
-                model.put("message", "try/catch error in questionedit() when updating DB; SQL was " + sql + " --- " + e.getMessage());
+                model.put("message", "try/catch error in questionedit() (first half) when updating DB; SQL was " + sql + " --- " + e.getMessage());
 
                 return "error";
             }
         }
 
-        if (httpRqstKeys.contains("id")) {
-            model.put("qid", httpRqstVarsMap.get("id"));
-            
+        if (currentQuestionId != null) {
             try (Connection connection = dataSource.getConnection()) {
                 Statement stmt = connection.createStatement();
 
-                ResultSet rs = stmt.executeQuery("SELECT * FROM Questions WHERE Id=" + httpRqstVarsMap.get("id"));
-
+                // Question stuff
+                ResultSet rs = stmt.executeQuery("SELECT * FROM Questions WHERE Id=" + currentQuestionId);
                 while (rs.next()) {
                     model.put("title", rs.getString(DbColNames.QUESTION_TITLE));
                     model.put("body", rs.getString(DbColNames.QUESTION_BODY));
                 }
+
+                // Tags for the question
+                StringBuilder tagStringBuilder = new StringBuilder();
+                
+                rs = stmt.executeQuery("SELECT TagName FROM QuestionTags WHERE QId=" + currentQuestionId);
+                while (rs.next()) {
+                    tagStringBuilder.append(rs.getString(DbColNames.QUESTION_TAGS_TAGNAME));
+                    tagStringBuilder.append(" ");
+                }
+                if(tagStringBuilder.length() > 0) { // This if statement shouldn't be necessary if things are working right, but for testing, tags might not be present...
+                    tagStringBuilder.deleteCharAt(tagStringBuilder.length() - 1); // Remove trailing space
+                }
+                
+                model.put("tags", tagStringBuilder.toString());
             } catch (Exception e) {
-                model.put("message", "try/catch error in questionedit() " + e.getMessage());
+                model.put("message", "try/catch error in questionedit() (second half) " + e.getMessage());
 
                 return "error";
             }
+        }
+        else {
+            model.put("message", "Tried to edit a question but no question ID was provided.");
+
+            return "error";
         }
         
         return "questionedit";

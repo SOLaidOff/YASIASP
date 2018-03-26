@@ -32,14 +32,19 @@
   <span th:text="${timestamp}">timestamp</span>
 
   <!-- Voting buttons -->  
-  <form method="get"> <!-- Results in /question?upvote=true -->
+  <form method="get" th:unless="${existingQVote} == 'upvote'"> <!-- Results in /question?upvote=true -->
     <input type="hidden" name="id" value="-1" th:value="${qid}">
-    <input type="hidden" name="upvote" value="true">
+    <input type="hidden" name="upvoteQ" value="true">
     <input type="submit" value="Upvote this question">
   </form>
-  <form method="get"> <!-- Results in /question?downvote=true -->
+  <form method="get" th:unless="${existingQVote} == 'novote'">
     <input type="hidden" name="id" value="-1" th:value="${qid}">
-    <input type="hidden" name="downvote" value="true">
+    <input type="hidden" name="cancelvoteQ" value="true">
+    <input type="submit" value="Cancel your vote on the question">
+  </form>
+  <form method="get" th:unless="${existingQVote} == 'downvote'"> <!-- Results in /question?downvote=true -->
+    <input type="hidden" name="id" value="-1" th:value="${qid}">
+    <input type="hidden" name="downvoteQ" value="true">
     <input type="submit" value="Downvote this question">
   </form>
   
@@ -76,14 +81,25 @@
   <br />
 
   <!-- Voting buttons -->  
-  <form method="get">
+  <form method="get" th:unless="${answer.currentUserVote} == 'upvote'">
     <input type="hidden" name="answerId" value="-1" th:value="${answer.id}">
-    <input type="hidden" name="upvote" value="true">
+    <input type="hidden" name="upvoteA" value="true">
+    <input type="hidden" name="id" value="-1" th:value="${qid}">
+    <input type="hidden" name="name" value="anonymous" th:value="${currentUser}">
     <input type="submit" value="Upvote the above answer">
   </form>
-  <form method="get">
+  <form method="get" th:unless="${answer.currentUserVote} == 'novote'">
     <input type="hidden" name="answerId" value="-1" th:value="${answer.id}">
-    <input type="hidden" name="downvote" value="true">
+    <input type="hidden" name="cancelvoteA" value="true">
+    <input type="hidden" name="id" value="-1" th:value="${qid}">
+    <input type="hidden" name="name" value="anonymous" th:value="${currentUser}">
+    <input type="submit" value="Cancel your vote on the above answer">
+  </form>
+  <form method="get" th:unless="${answer.currentUserVote} == 'downvote'">
+    <input type="hidden" name="answerId" value="-1" th:value="${answer.id}">
+    <input type="hidden" name="downvoteA" value="true">
+    <input type="hidden" name="id" value="-1" th:value="${qid}">
+    <input type="hidden" name="name" value="anonymous" th:value="${currentUser}">
     <input type="submit" value="Downvote the above answer">
   </form>
   

@@ -22,15 +22,17 @@
   <!-- ELSE -->
   <div th:unless="${currentUser} == 'anonymous'">
     <h2 th:text="|Hello, you are using the system as ${currentUser}.|">[welcome and user ID text]</h2>
+    <br />
+    <a href="/">Log out?</a>
   </div>
   
-  Want to <a href="/useradd" th:href="|/useradd?name=${currentUser}|">add a new user</a>?
+  <p>Want to <a href="/useradd" th:href="|/useradd?name=${currentUser}|">add a new user</a>?</p>
   
   <div th:unless="${currentUser} == 'anonymous'">
     Or <a href="userdelete" th:href="|/userdelete?name=${currentUser}|">delete your account</a>?
   </div>
   
-  <h2>Existing users:</h2>
+  <h2>Log in as an existing user:</h2>
 
   <ul th:each="name : ${names}">
     <li><a href="#" th:href="|/?name=${name}|" th:text="${name}">[name]</a>
