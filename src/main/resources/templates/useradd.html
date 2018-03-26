@@ -9,12 +9,12 @@
 <body>
 	<h1>Add a new YASIAS user</h1>
 	
-	<form method="get">
+	<form method="post">
 		<label for="newusername">New user's name: </label><input type="text" name="newusername">
 		<input type="submit" value="Register this username">
 	</form>
 	
-	Done adding new users? <a href="/">Return to main page</a>
+	Done adding new users? <a href="/" th:href="|/?name=${currentUser}|">Return to main page</a>
 </body>
 
 </html>

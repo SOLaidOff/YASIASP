@@ -14,7 +14,7 @@
   
   <p><span th:text="|You are answering the question ${questionTitle}|">You are answering the question [question title]</span>
 
-  <form method="get">
+  <form method="post">
     <input type="hidden" name="submission" value="true">
     <input type="hidden" name="qid" value="-1" th:value="${questionId}">
     <input type="hidden" name="questionTitle" value="-1" th:value="${questionTitle}">

@@ -14,7 +14,7 @@
     <p>Or, visit <a href="/question" th:href="|/question?id=${newlyAskedQuestionsId}|">the question you just asked</a>.
   </div>
 
-  <form method="get">
+  <form method="post">
     <input type="hidden" name="submission" value="true">
     <input type="hidden" name="author" value="anonymous" th:value="${currentUser}">
     <label for="question">Your question: </label>

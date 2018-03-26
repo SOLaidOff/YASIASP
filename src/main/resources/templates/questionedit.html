@@ -8,7 +8,7 @@
 <body>
   <h1>Edit an existing YASIAS question</h1>
 
-  <form method="get">
+  <form method="post">
     <input type="hidden" name="id" value="-1" th:value="${qid}">
     <input type="hidden" name="newdata" value="true">
     <input type="hidden" name="name" value="currentUserName" th:value="${currentUser}">
@@ -26,6 +26,6 @@
     <input type="submit" value="Update this question">
   </form>
 
-  <p>Done with edits? <a href="/" th:href="|/?name=${currentUser}|">Return to main page</a>
+  <p>Done with edits? <a href="/" th:href="|/question?id=${qid}|">Return to the question</a> or <a href="/" th:href="|/?name=${currentUser}|">return to main page</a>
 </body>
 </html>

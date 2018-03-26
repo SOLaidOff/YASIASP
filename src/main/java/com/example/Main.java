@@ -27,15 +27,12 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import javax.servlet.http.HttpServletRequest;
-//import javax.servlet.http.HttpServletResponse;
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
-//import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -55,21 +52,17 @@ public class Main {
     public static void main(String[] args) throws Exception {
         SpringApplication.run(Main.class, args);
     }
-    
+
     //////////////////// The YASIAS main page
 
     @RequestMapping("/")
     String index(Map<String, Object> model, HttpServletRequest request) {
-        String queryString = request.getQueryString(); // Ex. "name=Harry" (without the quotes)
-        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
-
-        String currentUser = getCurrentUser(httpRqstVarsMap);
+        String currentUser = getCurrentUser(request);
         model.put("currentUser", currentUser);
 
         try (Connection connection = dataSource.getConnection()) {
-            Statement stmt = connection.createStatement();
-
-            ResultSet rs = stmt.executeQuery("SELECT Name FROM Users;");
+            PreparedStatement usersStmt = connection.prepareStatement("SELECT Name FROM Users;");
+            ResultSet rs = usersStmt.executeQuery();
 
             List<String> output = new ArrayList<String>();
             while (rs.next()) {
@@ -77,105 +70,100 @@ public class Main {
             }
             model.put("names", output);
         } catch (Exception e) {
-            model.put("message", "error in try/catch of root (users section); " + e.getMessage());
+            model.put("message", "error in try/catch 1 of root (users section); " + e.getMessage());
 
             return "error";
         }
 
         try (Connection connection = dataSource.getConnection()) {
-            Statement stmt = connection.createStatement();
-            Statement stmt2 = connection.createStatement();
-
-            ResultSet rs = stmt.executeQuery("SELECT * FROM Questions;");
+            PreparedStatement questionsStmt = connection.prepareStatement("SELECT * FROM Questions;");
+            ResultSet rs = questionsStmt.executeQuery();
 
             List<Question> questions = new ArrayList<Question>();
             while (rs.next()) { // Essentially "for each question"
                 Question currentQuestion = new Question();
-                
+
                 currentQuestion.id = rs.getInt(DbColNames.QUESTION_ID);
                 currentQuestion.title = rs.getString(DbColNames.QUESTION_TITLE);
                 currentQuestion.author = rs.getString(DbColNames.QUESTION_AUTHOR);
                 currentQuestion.timestamp = rs.getTimestamp(DbColNames.QUESTION_TIMESTAMP);
                 currentQuestion.score = rs.getInt(DbColNames.QUESTION_SCORE);
-                
-                ResultSet rsTags = stmt2.executeQuery("SELECT TagName FROM QuestionTags WHERE QId='" + currentQuestion.id + "';");
-                
+
+                PreparedStatement questionTagsStmt = connection.prepareStatement("SELECT TagName FROM QuestionTags WHERE QId= ? ;");
+                questionTagsStmt.setInt(1, currentQuestion.id);
+                ResultSet rsTags = questionTagsStmt.executeQuery();
+
                 Set<String> tags = new HashSet<String>();
-                while(rsTags.next()) {
+                while (rsTags.next()) {
                     tags.add(rsTags.getString(DbColNames.QUESTION_TAGS_TAGNAME));
                 }
                 currentQuestion.tags = tags;
-                
+
                 questions.add(currentQuestion);
             }
             model.put("questions", questions);
         } catch (Exception e) {
-            model.put("message", "error in try/catch of root (users section); " + e.getMessage());
+            model.put("message", "error in try/catch 2 of root (users section); " + e.getMessage());
 
             return "error";
         }
 
         return "index";
     }
-    
+
     //////////////////// Methods related to YASIAS questions
 
     @RequestMapping("/ask")
     String ask(Map<String, Object> model, HttpServletRequest request) {
-        String queryString = request.getQueryString();
-
-        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
-        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
-
-        String currentUser = getCurrentUser(httpRqstVarsMap);
+        String currentUser = getCurrentUser(request);
         model.put("currentUser", currentUser);
-        
-        model.put("submitted", httpRqstVarsMap.get("submission"));
-        
-        boolean hasTitle = httpRqstKeys.contains("title");
-        boolean hasBody = httpRqstKeys.contains("body");
-        boolean hasTags = httpRqstKeys.contains("tags");
-        
-        if(hasTitle && hasBody && hasTags) {
+
+        model.put("submitted", request.getParameter("submission"));
+
+        boolean hasTitle = request.getParameter("title") != null;
+        boolean hasBody = request.getParameter("body") != null;
+        boolean hasTags = request.getParameter("tags") != null;
+
+        if (hasTitle && hasBody && hasTags) {
             try (Connection connection = dataSource.getConnection()) {
                 // TODO: figure out what this has to do with atomicity
-                
-                Statement stmt = connection.createStatement();
-                
-                StringBuilder sqlBuilder = new StringBuilder();
-                sqlBuilder.append("INSERT INTO Questions VALUES (");
-                sqlBuilder.append("DEFAULT"); // auto-incrementing ID
-                sqlBuilder.append(", '");
-                sqlBuilder.append(currentUser); // author
-                sqlBuilder.append("', '");
-                sqlBuilder.append(httpRqstVarsMap.get("title")); // title
-                sqlBuilder.append("', '");
-                sqlBuilder.append(httpRqstVarsMap.get("body")); // body
-                sqlBuilder.append("', ");
-                sqlBuilder.append("'now', "); // timestamp
-                sqlBuilder.append("0"); // score
-                sqlBuilder.append(");");
 
-                stmt.executeUpdate(sqlBuilder.toString());
+                PreparedStatement questionAddStmt = connection.prepareStatement("INSERT INTO Questions VALUES (DEFAULT, ? , ? , ? , 'now', 0);");
+                questionAddStmt.setString(1, currentUser);
+                questionAddStmt.setString(2, request.getParameter("title"));
+                questionAddStmt.setString(3, request.getParameter("body"));
+                questionAddStmt.executeUpdate();
                 // TODO: handle DB errors
-                
+
                 // Get the ID of the just-created question, for tag purposes
-                ResultSet rs = stmt.executeQuery("SELECT Id FROM Questions WHERE Author='" + currentUser + "' AND Title='" + httpRqstVarsMap.get("title") + "' ORDER BY Timestamp DESC LIMIT 1;"); // FIXME this is an approximation; use atomic operation?
+                PreparedStatement questionAddTagsStmt = connection.prepareStatement("SELECT Id FROM Questions WHERE Author= ? AND Title= ? ORDER BY Timestamp DESC LIMIT 1;");
+                // FIXME this is a hacky approximation; use atomic operation?
+
+                questionAddTagsStmt.setString(1, currentUser);
+                questionAddTagsStmt.setString(2, request.getParameter("title"));
+                ResultSet rs = questionAddTagsStmt.executeQuery();
+
                 rs.next();
                 int questionId = rs.getInt("Id");
                 model.put("newlyAskedQuestionsId", questionId);
-                                
-                // Handle tags (get the raw submitted tag string, divide it into individual tags, insert any new ones, associate with current question 
-                String tags = httpRqstVarsMap.get("tags");
+
+                // Handle tags (get the raw submitted tag string, divide it into individual tags, insert any new ones, associate with current question
+                String tags = request.getParameter("tags");
                 Scanner tagScanner = new Scanner(tags);
-                tagScanner.useDelimiter("\\+"); // Delimiter is + because requests are currently GETs
-                while(tagScanner.hasNext()) {
+                tagScanner.useDelimiter("\\+"); // Delimiter is + to support when requests are GETs
+                while (tagScanner.hasNext()) {
                     String nextTag = tagScanner.next();
 
-                    stmt.executeUpdate("INSERT INTO Tags VALUES ('" + nextTag + "') ON CONFLICT DO NOTHING;");
-                    stmt.executeUpdate("INSERT INTO QuestionTags VALUES ('" + questionId + "', '" + nextTag + "') ON CONFLICT DO NOTHING;");
+                    PreparedStatement tagAddStmt = connection.prepareStatement("INSERT INTO Tags VALUES ( ? ) ON CONFLICT DO NOTHING;");
+                    tagAddStmt.setString(1, nextTag);
+                    tagAddStmt.executeUpdate();
+
+                    PreparedStatement questionTagAddStmt = connection.prepareStatement("INSERT INTO QuestionTags VALUES ( ? , ? ) ON CONFLICT DO NOTHING;");
+                    questionTagAddStmt.setInt(1, questionId);
+                    questionTagAddStmt.setString(2, nextTag);
+                    questionTagAddStmt.executeUpdate();
                 }
-                
+
                 tagScanner.close();
             } catch (Exception e) {
                 model.put("message", "try/catch error in /ask(); " + e.getMessage());
@@ -183,454 +171,316 @@ public class Main {
                 return "error";
             }
         }
-        
+
         return "ask";
     }
 
     @RequestMapping("/question")
     String question(Map<String, Object> model, HttpServletRequest request) {
-        String queryString = request.getQueryString(); // Ex. "upvote=true&foo=bar" (without the quotes)
-        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
-
-        String currentUser = getCurrentUser(httpRqstVarsMap);
+        String currentUser = getCurrentUser(request);
         model.put("currentUser", currentUser);
-        
-        String currentQuestionId = httpRqstVarsMap.get("id");
+
+        Integer currentQuestionId = Integer.parseInt(request.getParameter("id"));
         model.put("qid", currentQuestionId);
 
         // Display the question
-        if (currentQuestionId != null) {
-            // Handle voting
-            boolean isQuestionUpvote = httpRqstVarsMap.get("upvoteQ") != null;
-            boolean isQuestionCancelvote = httpRqstVarsMap.get("cancelvoteQ") != null;
-            boolean isQuestionDownvote = httpRqstVarsMap.get("downvoteQ") != null;
-            boolean isAnswerUpvote = httpRqstVarsMap.get("upvoteA") != null;
-            boolean isAnswerCancelvote = httpRqstVarsMap.get("cancelvoteA") != null;
-            boolean isAnswerDownvote = httpRqstVarsMap.get("downvoteA") != null;
-            
-            short voteCount = 0;
-            if(isQuestionUpvote) { voteCount++; }
-            if(isQuestionCancelvote) { voteCount++; }
-            if(isQuestionDownvote) { voteCount++; }
-            if(isAnswerUpvote) { voteCount++; }
-            if(isAnswerCancelvote) { voteCount++; }
-            if(isAnswerDownvote) { voteCount++; }
-            
-            if(voteCount > 1) {
-                model.put("message", "Can't perform multiple vote actions simultaneously.");
 
-                return "error";
+        // Handle voting
+        boolean isQuestionUpvote = request.getParameter("upvoteQ") != null;
+        boolean isQuestionCancelvote = request.getParameter("cancelvoteQ") != null;
+        boolean isQuestionDownvote = request.getParameter("downvoteQ") != null;
+        boolean isAnswerUpvote = request.getParameter("upvoteA") != null;
+        boolean isAnswerCancelvote = request.getParameter("cancelvoteA") != null;
+        boolean isAnswerDownvote = request.getParameter("downvoteA") != null;
+
+        short voteCount = 0;
+        //@formatter:off
+        if(isQuestionUpvote) { voteCount++; }
+        if(isQuestionCancelvote) { voteCount++; }
+        if(isQuestionDownvote) { voteCount++; }
+        if(isAnswerUpvote) { voteCount++; }
+        if(isAnswerCancelvote) { voteCount++; }
+        if(isAnswerDownvote) { voteCount++; }
+        //@formatter:on
+
+        if (voteCount > 1) {
+            model.put("message", "Can't perform multiple vote actions simultaneously.");
+
+            return "error";
+        }
+
+        try (Connection connection = dataSource.getConnection()) {
+            // Determine existing vote status
+            StringBuilder sqlBuilder = new StringBuilder();
+
+            if (isQuestionUpvote || isQuestionDownvote || isAnswerUpvote || isAnswerDownvote) {
+                // Example:
+                // INSERT INTO Votes VALUES ( ? [PrepStmt1: Voter] , ' [StrBrk12: PostType] ', ? [PrepStmt2:PostId] , ' [StrBrk23: Value] ', 'now') ON CONFLICT (Voter, PostType, PostId) DO UPDATE SET
+                // Value=' [StrBrk34: Value] ', Timestamp='now';";
+
+                String sqlPiece1 = "INSERT INTO Votes VALUES ( ? , '";
+                String sqlPiece2 = "', ? , '";
+                String sqlPiece3 = "', 'now') ON CONFLICT (Voter, PostType, PostId) DO UPDATE SET Value='";
+                String sqlPiece4 = "', Timestamp='now';";
+
+                String sqlPieceUpvote = "upvote";
+                String sqlPieceDownvote = "downvote";
+                String sqlPieceQuestion = "question";
+                String sqlPieceAnswer = "answer";
+
+                Integer postId = new Integer(-1);
+
+                if (isQuestionUpvote) {
+                    sqlBuilder.append(sqlPiece1);
+                    sqlBuilder.append(sqlPieceQuestion);
+                    sqlBuilder.append(sqlPiece2);
+                    sqlBuilder.append(sqlPieceUpvote);
+                    sqlBuilder.append(sqlPiece3);
+                    sqlBuilder.append(sqlPieceUpvote);
+                    sqlBuilder.append(sqlPiece4);
+
+                    postId = currentQuestionId;
+                } else if (isQuestionDownvote) {
+                    sqlBuilder.append(sqlPiece1);
+                    sqlBuilder.append(sqlPieceQuestion);
+                    sqlBuilder.append(sqlPiece2);
+                    sqlBuilder.append(sqlPieceDownvote);
+                    sqlBuilder.append(sqlPiece3);
+                    sqlBuilder.append(sqlPieceDownvote);
+                    sqlBuilder.append(sqlPiece4);
+
+                    postId = currentQuestionId;
+                } else if (isAnswerUpvote) {
+                    sqlBuilder.append(sqlPiece1);
+                    sqlBuilder.append(sqlPieceAnswer);
+                    sqlBuilder.append(sqlPiece2);
+                    sqlBuilder.append(sqlPieceUpvote);
+                    sqlBuilder.append(sqlPiece3);
+                    sqlBuilder.append(sqlPieceUpvote);
+                    sqlBuilder.append(sqlPiece4);
+
+                    postId = Integer.parseInt(request.getParameter("answerId"));
+                } else if (isAnswerDownvote) {
+                    sqlBuilder.append(sqlPiece1);
+                    sqlBuilder.append(sqlPieceAnswer);
+                    sqlBuilder.append(sqlPiece2);
+                    sqlBuilder.append(sqlPieceDownvote);
+                    sqlBuilder.append(sqlPiece3);
+                    sqlBuilder.append(sqlPieceDownvote);
+                    sqlBuilder.append(sqlPiece4);
+
+                    postId = Integer.parseInt(request.getParameter("answerId"));
+                }
+
+                PreparedStatement voteChangeStmt = connection.prepareStatement(sqlBuilder.toString());
+                voteChangeStmt.setString(1, currentUser);
+                voteChangeStmt.setInt(2, postId);
+                voteChangeStmt.executeUpdate();
             }
 
-            try (Connection connection = dataSource.getConnection()) {
-                // Determine existing vote status
-                Statement stmt = connection.createStatement();
+            if (isQuestionCancelvote) {
+                // Simply remove the existing vote
 
-                if(isQuestionUpvote) {
-                    // If there's an existing downvote, UPDATE; if there's no existing vote, INSERT
-                    StringBuilder sqlBuilder = new StringBuilder();
+                // FIXME (low priority) - does not preserve time of deletion
+                PreparedStatement voteChangeStmt = connection.prepareStatement("DELETE FROM Votes WHERE Voter= ? AND PostType='question' AND PostId= ? ;");
+                voteChangeStmt.setString(1, currentUser);
+                voteChangeStmt.setInt(2, currentQuestionId);
+                voteChangeStmt.executeUpdate();
+            } else if (isAnswerCancelvote) {
+                // Simply remove the existing vote
 
-                    sqlBuilder.append("INSERT INTO Votes VALUES (");
-                    sqlBuilder.append("'" + currentUser + "', "); // Voter
-                    sqlBuilder.append("'question', "); // PostType
-                    sqlBuilder.append(currentQuestionId + ", "); // PostId
-                    sqlBuilder.append("'upvote', "); // Value
-                    sqlBuilder.append("'now'"); // Timestamp
-                    sqlBuilder.append(") ");
-                    sqlBuilder.append("ON CONFLICT (Voter, PostType, PostId) DO UPDATE "); // Existing downvote case; keep voter and post, change value and timestamp
-                    sqlBuilder.append("SET ");
-                    sqlBuilder.append("Value='upvote', ");
-                    sqlBuilder.append("Timestamp='now'");
-                    sqlBuilder.append(";");
-
-                    stmt.executeUpdate(sqlBuilder.toString());
-                } else if(isQuestionCancelvote) {
-                    // Simply remove the existing vote
-                    stmt.executeUpdate("DELETE FROM Votes WHERE Voter='" + currentUser + "' AND PostType='question' AND PostId=" + currentQuestionId + ";");
-                    // FIXME - does not preserve time of deletion
-                } else if(isQuestionDownvote) {
-                    // If there's an existing upvote, UPDATE; if there's no existing vote, INSERT
-                    StringBuilder sqlBuilder = new StringBuilder();
-
-                    sqlBuilder.append("INSERT INTO Votes VALUES (");
-                    sqlBuilder.append("'" + currentUser + "', "); // Voter
-                    sqlBuilder.append("'question', "); // PostType
-                    sqlBuilder.append(currentQuestionId + ", "); // PostId
-                    sqlBuilder.append("'downvote', "); // Value
-                    sqlBuilder.append("'now'"); // Timestamp
-                    sqlBuilder.append(") ");
-                    sqlBuilder.append("ON CONFLICT (Voter, PostType, PostId) DO UPDATE "); // Existing downvote case; keep voter and post, change value and timestamp
-                    sqlBuilder.append("SET ");
-                    sqlBuilder.append("Value='downvote', ");
-                    sqlBuilder.append("Timestamp='now'");
-                    sqlBuilder.append(";");
-
-                    stmt.executeUpdate(sqlBuilder.toString());
-                } else if(isAnswerUpvote) {
-                    // If there's an existing downvote, UPDATE; if there's no existing vote, INSERT
-                    StringBuilder sqlBuilder = new StringBuilder();
-
-                    sqlBuilder.append("INSERT INTO Votes VALUES (");
-                    sqlBuilder.append("'" + currentUser + "', "); // Voter
-                    sqlBuilder.append("'answer', "); // PostType
-                    sqlBuilder.append(httpRqstVarsMap.get("answerId") + ", "); // PostId
-                    sqlBuilder.append("'upvote', "); // Value
-                    sqlBuilder.append("'now'"); // Timestamp
-                    sqlBuilder.append(") ");
-                    sqlBuilder.append("ON CONFLICT (Voter, PostType, PostId) DO UPDATE "); // Existing downvote case; keep voter and post, change value and timestamp
-                    sqlBuilder.append("SET ");
-                    sqlBuilder.append("Value='upvote', ");
-                    sqlBuilder.append("Timestamp='now'");
-                    sqlBuilder.append(";");
-
-                    stmt.executeUpdate(sqlBuilder.toString());
-                } else if(isAnswerCancelvote) {
-                    // Simply remove the existing vote
-                    stmt.executeUpdate("DELETE FROM Votes WHERE Voter='" + currentUser + "' AND PostType='answer' AND PostId=" + httpRqstVarsMap.get("answerId") + ";");
-                    // FIXME - does not preserve time of deletion
-                } else if(isAnswerDownvote) {
-                    // If there's an existing upvote, UPDATE; if there's no existing vote, INSERT
-                    StringBuilder sqlBuilder = new StringBuilder();
-
-                    sqlBuilder.append("INSERT INTO Votes VALUES (");
-                    sqlBuilder.append("'" + currentUser + "', "); // Voter
-                    sqlBuilder.append("'answer', "); // PostType
-                    sqlBuilder.append(httpRqstVarsMap.get("answerId") + ", "); // PostId
-                    sqlBuilder.append("'downvote', "); // Value
-                    sqlBuilder.append("'now'"); // Timestamp
-                    sqlBuilder.append(") ");
-                    sqlBuilder.append("ON CONFLICT (Voter, PostType, PostId) DO UPDATE "); // Existing downvote case; keep voter and post, change value and timestamp
-                    sqlBuilder.append("SET ");
-                    sqlBuilder.append("Value='downvote', ");
-                    sqlBuilder.append("Timestamp='now'");
-                    sqlBuilder.append(";");
-
-                    stmt.executeUpdate(sqlBuilder.toString());
-                }
-            } catch (Exception e) {
-                model.put("message", "Exception in question() - vote processing logic " + e.getMessage());
-
-                return "error";
+                // FIXME (low priority) - does not preserve time of deletion
+                PreparedStatement voteChangeStmt = connection.prepareStatement("DELETE FROM Votes WHERE Voter= ? AND PostType='answer' AND PostId= ? ;");
+                voteChangeStmt.setString(1, currentUser);
+                voteChangeStmt.setInt(2, Integer.parseInt(request.getParameter("answerId")));
+                voteChangeStmt.executeUpdate();
             }
-            
-            // Done with vote handling, get the rest of the post info
-            try (Connection connection = dataSource.getConnection()) {
-                Statement stmt = connection.createStatement();
-                Statement stmt2 = connection.createStatement();
-                Statement stmt3 = connection.createStatement();
+        } catch (Exception e) {
+            model.put("message", "Exception in question() - vote processing logic " + e.getMessage());
 
-                // Get basic info on the current question
-                ResultSet rs = stmt.executeQuery("SELECT * FROM Questions WHERE Id=" + currentQuestionId);
-                
-                while (rs.next()) {
-                    model.put("author", rs.getString(DbColNames.QUESTION_AUTHOR));
-                    model.put("title", rs.getString(DbColNames.QUESTION_TITLE));
-                    model.put("body", rs.getString(DbColNames.QUESTION_BODY));
-                    model.put("timestamp", rs.getString(DbColNames.QUESTION_TIMESTAMP));
-                    model.put("score", rs.getString(DbColNames.QUESTION_SCORE));
-                }
-                
-                // Get info on the question's tags
-                ResultSet rsTags = stmt2.executeQuery("SELECT TagName FROM QuestionTags WHERE QId='" + currentQuestionId + "';");
-                
-                Set<String> tags = new HashSet<String>();
-                while(rsTags.next()) {
-                    tags.add(rsTags.getString(DbColNames.QUESTION_TAGS_TAGNAME));
-                }
-                model.put("tags", tags);
+            return "error";
+        }
 
-                // Get info on the question's votes, with respect to the current user
-                ResultSet rsVotes = stmt3.executeQuery("SELECT Value FROM Votes WHERE Voter='" + currentUser + "' AND PostType='question' AND PostId='" + currentQuestionId + "';");
-                String existingQVote = "novote";
-                while(rsVotes.next()) {
-                    existingQVote = rsVotes.getString(DbColNames.VOTES_VALUE);
-                    if(existingQVote == null) {
-                        existingQVote = "novote";
+        // Done with vote handling, get the rest of the post info
+        try (Connection connection = dataSource.getConnection()) {
+            // Get basic info on the current question
+            PreparedStatement questionStmtMain = connection.prepareStatement("SELECT * FROM Questions WHERE Id= ? ;");
+            questionStmtMain.setInt(1, currentQuestionId);
+            ResultSet rs = questionStmtMain.executeQuery();
+
+            while (rs.next()) {
+                model.put("author", rs.getString(DbColNames.QUESTION_AUTHOR));
+                model.put("title", rs.getString(DbColNames.QUESTION_TITLE));
+                model.put("body", rs.getString(DbColNames.QUESTION_BODY));
+                model.put("timestamp", rs.getString(DbColNames.QUESTION_TIMESTAMP));
+                model.put("score", rs.getString(DbColNames.QUESTION_SCORE));
+            }
+
+            // Get info on the question's tags
+            PreparedStatement questionStmtTags = connection.prepareStatement("SELECT TagName FROM QuestionTags WHERE QId= ? ;");
+            questionStmtTags.setInt(1, currentQuestionId);
+            ResultSet rsTags = questionStmtTags.executeQuery();
+
+            Set<String> tags = new HashSet<String>();
+            while (rsTags.next()) {
+                tags.add(rsTags.getString(DbColNames.QUESTION_TAGS_TAGNAME));
+            }
+            model.put("tags", tags);
+
+            // Get info on the question's votes, with respect to the current user
+            PreparedStatement questionStmtVotes = connection.prepareStatement("SELECT Value FROM Votes WHERE Voter= ? AND PostType='question' AND PostId= ? ;");
+            questionStmtVotes.setString(1, currentUser);
+            questionStmtVotes.setInt(2, currentQuestionId);
+            ResultSet rsVotes = questionStmtVotes.executeQuery();
+
+            String existingQVote = "novote";
+            while (rsVotes.next()) {
+                existingQVote = rsVotes.getString(DbColNames.VOTES_VALUE);
+                if (existingQVote == null) {
+                    existingQVote = "novote";
+                }
+            }
+            model.put("existingQVote", existingQVote);
+
+            // Get info on any/all answers to the current question
+            List<Answer> answers = new ArrayList<Answer>();
+            PreparedStatement answerStmtMain = connection.prepareStatement("SELECT * FROM Answers WHERE Question = ? ;");
+            answerStmtMain.setInt(1, currentQuestionId);
+            rs = answerStmtMain.executeQuery();
+
+            while (rs.next()) {
+                Answer currentAnswer = new Answer();
+
+                currentAnswer.id = rs.getInt(DbColNames.ANSWER_ID);
+                currentAnswer.author = rs.getString(DbColNames.ANSWER_AUTHOR);
+                currentAnswer.question = rs.getInt(DbColNames.ANSWER_QUESTION);
+                currentAnswer.body = rs.getString(DbColNames.ANSWER_BODY);
+                currentAnswer.timestamp = rs.getTimestamp(DbColNames.ANSWER_TIMESTAMP);
+                currentAnswer.score = rs.getInt(DbColNames.ANSWER_SCORE);
+
+                // Get info on the answer's votes, with respect to the current user
+                PreparedStatement answerStmtVotes = connection.prepareStatement("SELECT Value FROM Votes WHERE Voter= ? AND PostType='answer' AND PostId= ? ;");
+                answerStmtVotes.setString(1, currentUser);
+                answerStmtVotes.setInt(2, rs.getInt(DbColNames.ANSWER_ID));
+                rsVotes = answerStmtVotes.executeQuery();
+                String existingAVote = "novote";
+                while (rsVotes.next()) {
+                    existingAVote = rsVotes.getString(DbColNames.VOTES_VALUE);
+                    if (existingAVote == null) {
+                        existingAVote = "novote";
                     }
                 }
-                model.put("existingQVote", existingQVote);
-                
-                // Get info on any/all answers to the current question
-                List<Answer> answers = new ArrayList<Answer>();
-                rs = stmt.executeQuery("SELECT * FROM Answers WHERE Question =" + currentQuestionId);
+                currentAnswer.currentUserVote = existingAVote;
 
-                while (rs.next()) {
-                    Answer currentAnswer = new Answer();
-
-                    currentAnswer.id = rs.getInt(DbColNames.ANSWER_ID);
-                    currentAnswer.author = rs.getString(DbColNames.ANSWER_AUTHOR);
-                    currentAnswer.question = rs.getInt(DbColNames.ANSWER_QUESTION);
-                    currentAnswer.body = rs.getString(DbColNames.ANSWER_BODY);
-                    currentAnswer.timestamp = rs.getTimestamp(DbColNames.ANSWER_TIMESTAMP);
-                    currentAnswer.score = rs.getInt(DbColNames.ANSWER_SCORE);
-
-                    // Get info on the answer's votes, with respect to the current user
-                    rsVotes = stmt3.executeQuery("SELECT Value FROM Votes WHERE Voter='" + currentUser + "' AND PostType='answer' AND PostId='" + rs.getInt(DbColNames.ANSWER_ID) + "';");
-                    String existingAVote = "novote";
-                    while(rsVotes.next()) {
-                        existingAVote = rsVotes.getString(DbColNames.VOTES_VALUE);
-                        if(existingAVote == null) {
-                            existingAVote = "novote";
-                        }
-                    }
-                    currentAnswer.currentUserVote = existingAVote;
-                    
-                    answers.add(currentAnswer);
-                }
-                
-                model.put("answers", answers);
-            } catch (Exception e) {
-                model.put("message", "try/catch error in question() " + e.getMessage());
-
-                return "error";
+                answers.add(currentAnswer);
             }
-        } else {
-            model.put("message", "Tried to view a question but no question ID was provided.");
+
+            model.put("answers", answers);
+        } catch (Exception e) {
+            model.put("message", "try/catch error in question() " + e.getMessage());
 
             return "error";
         }
 
         return "question";
     }
-    
+
     @RequestMapping("/questionedit")
     String questionedit(Map<String, Object> model, HttpServletRequest request) {
-        String queryString = request.getQueryString();
-        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
-        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
-
-        String currentUser = getCurrentUser(httpRqstVarsMap);
+        String currentUser = getCurrentUser(request);
         model.put("currentUser", currentUser);
-        
-        String currentQuestionId = httpRqstVarsMap.get("id");
+
+        Integer currentQuestionId = Integer.parseInt(request.getParameter("id"));
         model.put("qid", currentQuestionId);
 
         // An edited question has been submitted
-        if (httpRqstKeys.contains("newdata")) {
-            String sql = "";
-            
+        if (request.getParameter("newdata") != null) {
             try (Connection connection = dataSource.getConnection()) {
-                Statement stmt = connection.createStatement();
-                
-                StringBuilder sqlBuilder = new StringBuilder();
-                sqlBuilder.append("UPDATE Questions SET ");
-                sqlBuilder.append("Title='" + httpRqstVarsMap.get("title") + "', ");
-                sqlBuilder.append("Body='" + httpRqstVarsMap.get("body") + "', ");
-                sqlBuilder.append("Author='" + httpRqstVarsMap.get("author") + "', ");
-                sqlBuilder.append("Timestamp='now' ");
-                sqlBuilder.append("WHERE Id=" + currentQuestionId);
-                sql = sqlBuilder.toString();
-                
-                stmt.executeUpdate(sql);
-                
+                PreparedStatement questionEditStmtMain = connection.prepareStatement("UPDATE Questions SET Title= ? , Body= ? , Author= ? , Timestamp='now' WHERE Id= ? ;");
+                questionEditStmtMain.setString(1, request.getParameter("title"));
+                questionEditStmtMain.setString(2, request.getParameter("body"));
+                questionEditStmtMain.setString(3, request.getParameter("author"));
+                questionEditStmtMain.setInt(4, currentQuestionId);
+                questionEditStmtMain.executeUpdate();
+
                 // Update tags: simple (if inelegant) solution is to remove all tags for the Q and then add the new ones
-                stmt.executeUpdate("DELETE FROM QuestionTags WHERE QId='" + currentQuestionId + "';");
+                PreparedStatement questionEditStmtTags1 = connection.prepareStatement("DELETE FROM QuestionTags WHERE QId= ? ;");
+                questionEditStmtTags1.setInt(1, currentQuestionId);
+                questionEditStmtTags1.executeUpdate();
 
                 // Read incoming tags and handle them
-                String tags = httpRqstVarsMap.get("tags");
+                String tags = request.getParameter("tags");
                 Scanner tagScanner = new Scanner(tags);
-                tagScanner.useDelimiter("\\+"); // Delimiter is + because requests are currently GETs
-                while(tagScanner.hasNext()) {
+                tagScanner.useDelimiter("\\+"); // Delimiter supports + character in case requests are GETs
+                while (tagScanner.hasNext()) {
                     String nextTag = tagScanner.next();
 
-                    stmt.executeUpdate("INSERT INTO Tags VALUES ('" + nextTag + "') ON CONFLICT DO NOTHING;");
-                    stmt.executeUpdate("INSERT INTO QuestionTags VALUES ('" + currentQuestionId + "', '" + nextTag + "') ON CONFLICT DO NOTHING;");
+                    PreparedStatement questionEditStmtTags2 = connection.prepareStatement("INSERT INTO Tags VALUES ( ? ) ON CONFLICT DO NOTHING;");
+                    questionEditStmtTags2.setString(1, nextTag);
+                    questionEditStmtTags2.executeUpdate();
+
+                    PreparedStatement questionEditStmtTags3 = connection.prepareStatement("INSERT INTO QuestionTags VALUES ( ? , ? ) ON CONFLICT DO NOTHING;");
+                    questionEditStmtTags3.setInt(1, currentQuestionId);
+                    questionEditStmtTags3.setString(2, nextTag);
+                    questionEditStmtTags3.executeUpdate();
                 }
                 tagScanner.close();
             } catch (Exception e) {
-                model.put("message", "try/catch error in questionedit() (first half) when updating DB; SQL was " + sql + " --- " + e.getMessage());
+                model.put("message", "try/catch error in questionedit() (first half) when updating DB; " + e.getMessage());
 
                 return "error";
             }
         }
 
-        if (currentQuestionId != null) {
-            try (Connection connection = dataSource.getConnection()) {
-                Statement stmt = connection.createStatement();
+        try (Connection connection = dataSource.getConnection()) {
+            ResultSet rs = null;
 
-                // Question stuff
-                ResultSet rs = stmt.executeQuery("SELECT * FROM Questions WHERE Id=" + currentQuestionId);
-                while (rs.next()) {
-                    model.put("title", rs.getString(DbColNames.QUESTION_TITLE));
-                    model.put("body", rs.getString(DbColNames.QUESTION_BODY));
-                }
+            PreparedStatement questionEditStmtReadMain = connection.prepareStatement("SELECT * FROM Questions WHERE Id= ? ;");
+            questionEditStmtReadMain.setInt(1, currentQuestionId);
+            rs = questionEditStmtReadMain.executeQuery();
 
-                // Tags for the question
-                StringBuilder tagStringBuilder = new StringBuilder();
-                
-                rs = stmt.executeQuery("SELECT TagName FROM QuestionTags WHERE QId=" + currentQuestionId);
-                while (rs.next()) {
-                    tagStringBuilder.append(rs.getString(DbColNames.QUESTION_TAGS_TAGNAME));
-                    tagStringBuilder.append(" ");
-                }
-                if(tagStringBuilder.length() > 0) { // This if statement shouldn't be necessary if things are working right, but for testing, tags might not be present...
-                    tagStringBuilder.deleteCharAt(tagStringBuilder.length() - 1); // Remove trailing space
-                }
-                
-                model.put("tags", tagStringBuilder.toString());
-            } catch (Exception e) {
-                model.put("message", "try/catch error in questionedit() (second half) " + e.getMessage());
+            rs.next();
+            model.put("title", rs.getString(DbColNames.QUESTION_TITLE));
+            model.put("body", rs.getString(DbColNames.QUESTION_BODY));
 
-                return "error";
+            // Tags for the question
+            StringBuilder tagStringBuilder = new StringBuilder();
+
+            PreparedStatement questionEditStmtReadTags = connection.prepareStatement("SELECT TagName FROM QuestionTags WHERE QId= ? ;");
+            questionEditStmtReadTags.setInt(1, currentQuestionId);
+            rs = questionEditStmtReadTags.executeQuery();
+
+            while (rs.next()) {
+                tagStringBuilder.append(rs.getString(DbColNames.QUESTION_TAGS_TAGNAME));
+                tagStringBuilder.append(" ");
             }
-        }
-        else {
-            model.put("message", "Tried to edit a question but no question ID was provided.");
+
+            if (tagStringBuilder.length() > 0) { // This if statement shouldn't be necessary if things are working correctly, but for testing, tags might not be present...
+                tagStringBuilder.deleteCharAt(tagStringBuilder.length() - 1); // Remove trailing space
+            }
+
+            model.put("tags", tagStringBuilder.toString());
+        } catch (Exception e) {
+            model.put("message", "try/catch error in questionedit() (second half) " + e.getMessage());
 
             return "error";
         }
-        
+
         return "questionedit";
     }
-    
+
     @RequestMapping("/questiondelete")
     String questionDelete(Map<String, Object> model, HttpServletRequest request) {
-        String queryString = request.getQueryString();
-        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
-        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
-
-        String currentUser = getCurrentUser(httpRqstVarsMap);
+        String currentUser = getCurrentUser(request);
         model.put("currentUser", currentUser);
 
-        if (httpRqstKeys.contains("id")) {
-            int sqlReturnValue = -2;
+        Integer questionId = Integer.parseInt(request.getParameter("id"));
+
+        if (questionId != null) {
             try (Connection connection = dataSource.getConnection()) {
-                Statement stmt = connection.createStatement();
-
-                sqlReturnValue = stmt.executeUpdate("DELETE FROM Questions WHERE Id = '" + httpRqstVarsMap.get("id") + "';");
-                // TODO: handle DB errors, e.g. non-existant ID
-            } catch (Exception e) {
-                model.put("message", "try/catch error in questiondelete(); SQL return value is " + sqlReturnValue + " (default is -2); " + e.getMessage());
-
-                return "error";
-            }
-
-            model.put("removedQuestionId", httpRqstVarsMap.get("id"));
-        }        
-        
-        return "questiondelete";
-    }
-    
-    //////////////////// Methods related to YASIAS answers
-
-    @RequestMapping("/answer")
-    String answer(Map<String, Object> model, HttpServletRequest request) {
-        String queryString = request.getQueryString();
-
-        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
-        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
-
-        String currentUser = getCurrentUser(httpRqstVarsMap);
-        model.put("currentUser", currentUser);
-        
-        String questionTitle = httpRqstVarsMap.get("questionTitle");
-        model.put("questionTitle", questionTitle);
-        String questionId = httpRqstVarsMap.get("qid");
-        model.put("questionId", questionId);
-        
-        if(httpRqstKeys.contains("submission")) {
-            model.put("submitted", "true");
-            
-            try (Connection connection = dataSource.getConnection()) {
-                Statement stmt = connection.createStatement();
-                
-                StringBuilder sqlBuilder = new StringBuilder();
-                sqlBuilder.append("INSERT INTO Answers VALUES (");
-                sqlBuilder.append("DEFAULT"); // auto-incrementing ID
-                sqlBuilder.append(", '");
-                sqlBuilder.append(currentUser); // author
-                sqlBuilder.append("', '");
-                sqlBuilder.append(questionId); // question ID
-                sqlBuilder.append("', '");
-                sqlBuilder.append(httpRqstVarsMap.get("body")); // body
-                sqlBuilder.append("', ");
-                sqlBuilder.append("'now', "); // timestamp
-                sqlBuilder.append("0"); // score
-                sqlBuilder.append(");");
-
-                stmt.executeUpdate(sqlBuilder.toString());
-                // TODO: handle DB errors
-            } catch (Exception e) {
-                model.put("message", "try/catch error in /ask(); " + e.getMessage());
-
-                return "error";
-            }
-        }
-        
-        return "answer";
-    }
-    
-    @RequestMapping("/answeredit")
-    String answerEdit(Map<String, Object> model, HttpServletRequest request) {
-        String queryString = request.getQueryString();
-        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
-        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
-
-        String currentUser = getCurrentUser(httpRqstVarsMap);
-        model.put("currentUser", currentUser);
-
-        model.put("aid", httpRqstVarsMap.get("id"));
-        model.put("qid", httpRqstVarsMap.get("qid"));
-
-        if (httpRqstKeys.contains("newdata")) {
-            model.put("submitted", "true");
-            
-            String sql = "";
-            
-            try (Connection connection = dataSource.getConnection()) {
-                Statement stmt = connection.createStatement();
-                
-                StringBuilder sqlBuilder = new StringBuilder();
-                sqlBuilder.append("UPDATE Answers SET ");
-                sqlBuilder.append("Body='" + httpRqstVarsMap.get("body") + "', ");
-                sqlBuilder.append("Author='" + httpRqstVarsMap.get("author") + "', ");
-                sqlBuilder.append("Timestamp='now' ");
-                sqlBuilder.append("WHERE Id=" + httpRqstVarsMap.get("id"));
-                sql = sqlBuilder.toString();
-                
-                stmt.executeUpdate(sql);
-            } catch (Exception e) {
-                model.put("message", "try/catch error in answeredit() when updating DB; SQL was " + sql + " --- " + e.getMessage());
-
-                return "error";
-            }
-        }
-
-        if (httpRqstKeys.contains("id")) {
-            try (Connection connection = dataSource.getConnection()) {
-                Statement stmt = connection.createStatement();
-
-                ResultSet rs = stmt.executeQuery("SELECT * FROM Answers WHERE Id=" + httpRqstVarsMap.get("id"));
-
-                while (rs.next()) {
-                    model.put("body", rs.getString(DbColNames.ANSWER_BODY));
-                }
-            } catch (Exception e) {
-                model.put("message", "try/catch error in answeredit() " + e.getMessage());
-
-                return "error";
-            }
-        }
-        
-        return "answeredit";
-    }
-    
-    @RequestMapping("/answerdelete")
-    String answerDelete(Map<String, Object> model, HttpServletRequest request) {
-        String queryString = request.getQueryString();
-        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
-        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
-
-        String currentUser = getCurrentUser(httpRqstVarsMap);
-        model.put("currentUser", currentUser);
-
-        model.put("qid", httpRqstVarsMap.get("qid"));
-
-        if (httpRqstKeys.contains("id")) {
-            try (Connection connection = dataSource.getConnection()) {
-                Statement stmt = connection.createStatement();
-
-                stmt.executeUpdate("DELETE FROM Answers WHERE Id = '" + httpRqstVarsMap.get("id") + "';");
+                PreparedStatement stmt = connection.prepareStatement("DELETE FROM Questions WHERE Id = ? ;");
+                stmt.setInt(1, questionId);
+                stmt.executeUpdate();
                 // TODO: handle DB errors, e.g. non-existant ID
             } catch (Exception e) {
                 model.put("message", "try/catch error in questiondelete(); " + e.getMessage());
@@ -638,32 +488,129 @@ public class Main {
                 return "error";
             }
 
-            model.put("removedAnswerId", httpRqstVarsMap.get("id"));
-        }        
-        
+            model.put("removedQuestionId", questionId);
+        }
+
+        return "questiondelete";
+    }
+
+    //////////////////// Methods related to YASIAS answers
+
+    @RequestMapping("/answer")
+    String answer(Map<String, Object> model, HttpServletRequest request) {
+        String currentUser = getCurrentUser(request);
+        model.put("currentUser", currentUser);
+
+        String questionTitle = request.getParameter("questionTitle");
+        model.put("questionTitle", questionTitle);
+        Integer questionId = Integer.parseInt(request.getParameter("qid"));
+        model.put("questionId", questionId);
+
+        if (request.getParameter("submission") != null) {
+            model.put("submitted", "true");
+
+            try (Connection connection = dataSource.getConnection()) {
+                PreparedStatement stmt = connection.prepareStatement("INSERT INTO Answers VALUES (DEFAULT, ? , ? , ? , 'now', 0);");
+                stmt.setString(1, currentUser);
+                stmt.setInt(2, questionId);
+                stmt.setString(3, request.getParameter("body"));
+                stmt.executeUpdate();
+                // TODO: handle DB errors
+            } catch (Exception e) {
+                model.put("message", "try/catch error in /ask(); " + e.getMessage());
+
+                return "error";
+            }
+        }
+
+        return "answer";
+    }
+
+    @RequestMapping("/answeredit")
+    String answerEdit(Map<String, Object> model, HttpServletRequest request) {
+        String currentUser = getCurrentUser(request);
+        model.put("currentUser", currentUser);
+
+        model.put("aid", request.getParameter("id"));
+        model.put("qid", request.getParameter("qid"));
+
+        if (request.getParameter("newdata") != null) {
+            model.put("submitted", "true");
+
+            try (Connection connection = dataSource.getConnection()) {
+                PreparedStatement stmt = connection.prepareStatement("UPDATE Answers SET Body= ? , Author= ? , Timestamp='now' WHERE Id= ? ;");
+                stmt.setString(1, request.getParameter("body"));
+                stmt.setString(2, request.getParameter("author"));
+                stmt.setInt(3, Integer.parseInt(request.getParameter("id")));
+                stmt.executeUpdate();
+            } catch (Exception e) {
+                model.put("message", "try/catch error in answeredit() when updating DB; " + e.getMessage());
+
+                return "error";
+            }
+        }
+
+        if (request.getParameter("id") != null) {
+            try (Connection connection = dataSource.getConnection()) {
+                PreparedStatement stmt = connection.prepareStatement("SELECT * FROM Answers WHERE Id= ? ;");
+                stmt.setInt(1, Integer.parseInt(request.getParameter("id")));
+                ResultSet rs = stmt.executeQuery();
+
+                rs.next();
+                model.put("body", rs.getString(DbColNames.ANSWER_BODY));
+            } catch (Exception e) {
+                model.put("message", "try/catch error in answeredit() " + e.getMessage());
+
+                return "error";
+            }
+        }
+
+        return "answeredit";
+    }
+
+    @RequestMapping("/answerdelete")
+    String answerDelete(Map<String, Object> model, HttpServletRequest request) {
+        String currentUser = getCurrentUser(request);
+        model.put("currentUser", currentUser);
+
+        model.put("qid", request.getParameter("qid"));
+
+        Integer answerId = Integer.parseInt(request.getParameter("id"));
+
+        if (answerId != null) {
+            try (Connection connection = dataSource.getConnection()) {
+                PreparedStatement stmt = connection.prepareStatement("DELETE FROM Answers WHERE Id = ? ;");
+                stmt.setInt(1, answerId);
+                stmt.executeUpdate();
+                // TODO: handle DB errors, e.g. non-existant ID
+            } catch (Exception e) {
+                model.put("message", "try/catch error in questiondelete(); " + e.getMessage());
+
+                return "error";
+            }
+
+            model.put("removedAnswerId", answerId);
+        }
+
         return "answerdelete";
     }
-    
+
     //////////////////// Methods related to YASIAS users
 
     @RequestMapping("/useradd")
     String useradd(Map<String, Object> model, HttpServletRequest request) {
-        String queryString = request.getQueryString(); // Ex. "upvote=true&foo=bar" (without the quotes)
-        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
-        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
-
-        String currentUser = getCurrentUser(httpRqstVarsMap);
+        String currentUser = getCurrentUser(request);
         model.put("currentUser", currentUser);
 
-        if (httpRqstKeys.contains("newusername")) {
-            int sqlReturnValue = -5;
+        if (request.getParameter("newusername") != null) {
+            // int sqlReturnValue = -5;
             try (Connection connection = dataSource.getConnection()) {
-                Statement stmt = connection.createStatement();
-
-                sqlReturnValue = stmt.executeUpdate("INSERT INTO Users VALUES ('" + httpRqstVarsMap.get("newusername") + "');");
+                PreparedStatement stmt = connection.prepareStatement("INSERT INTO Users VALUES ( ? );");
+                stmt.setString(1, request.getParameter("newusername"));
+                stmt.executeUpdate();
                 // TODO: handle DB errors, e.g. duplicate name
             } catch (Exception e) {
-                model.put("message", "try/catch error in useradd(); SQL return value is " + sqlReturnValue + " (default is -5); " + e.getMessage());
+                model.put("message", "try/catch error in useradd(); " + e.getMessage());
 
                 return "error";
             }
@@ -676,38 +623,37 @@ public class Main {
 
     @RequestMapping("/userdelete")
     String userdelete(Map<String, Object> model, HttpServletRequest request) {
-        String queryString = request.getQueryString(); // Ex. "upvote=true&foo=bar" (without the quotes)
-        Map<String, String> httpRqstVarsMap = parseHttpRequestParams(queryString);
-        Set<String> httpRqstKeys = httpRqstVarsMap.keySet();
-
-        String currentUser = getCurrentUser(httpRqstVarsMap);
+        String currentUser = getCurrentUser(request);
         model.put("currentUser", currentUser);
 
-        if (httpRqstKeys.contains("name")) {
-            int sqlReturnValue = -3;
-            try (Connection connection = dataSource.getConnection()) {
-                Statement stmt = connection.createStatement();
+        String userToDelete = request.getParameter("name");
 
-                sqlReturnValue = stmt.executeUpdate("DELETE FROM Users WHERE Name = '" + httpRqstVarsMap.get("name") + "';");
+        if (userToDelete != null) {
+            try (Connection connection = dataSource.getConnection()) {
+                PreparedStatement stmt = connection.prepareStatement("DELETE FROM Users WHERE Name = ? ;");
+                stmt.setString(1, userToDelete);
+                stmt.executeUpdate();
                 // TODO: handle DB errors, e.g. non-existant name
             } catch (Exception e) {
-                model.put("message", "try/catch error in userdelete(); SQL return value is " + sqlReturnValue + " (default is -3); " + e.getMessage());
+                model.put("message", "try/catch error in userdelete(); " + e.getMessage());
 
                 return "error";
             }
 
-            model.put("removedUser", httpRqstVarsMap.get("name"));
+            model.put("removedUser", userToDelete);
         }
 
         return "userdelete";
     }
-    
+
     //////////////////// Methods related to YASIAS tags
-    
-    
-    
+
+    // TODO: allow looking at info about existing tags; not top priority
+
     //////////////////// YASIAS helper methods
 
+    /*
+     * @formatter:off
     private Map<String, String> parseHttpRequestParams(String queryString) {
         Map<String, String> paramMap = new HashMap<String, String>();
 
@@ -729,15 +675,30 @@ public class Main {
 
         return paramMap;
     }
+     * @formatter:on
+     */
 
-    private String getCurrentUser(Map<String, String> httpRqstVarsMap) {
-        String currentUser = httpRqstVarsMap.get("name"); // null if there was no name param
-        if(currentUser == null) {
+    private String getCurrentUser(HttpServletRequest request) {
+        String currentUser = request.getParameter("name"); // null if there was no name param
+        if (currentUser == null) {
             currentUser = "anonymous";
         }
-        
+
         return currentUser;
     }
+
+    /*
+     * @formatter:off
+    private String getCurrentUserFromQueryString(Map<String, String> httpRqstVarsMap) {
+        String currentUser = httpRqstVarsMap.get("name"); // null if there was no name param if(currentUser == null)
+        {
+            currentUser = "anonymous";
+        }
+
+        return currentUser;
+    }
+     * @formatter:on
+     */
 
     // tl;dr on Hikari:
     // Came with the example code, is a third-party open-source drop-in connection pool solution
@@ -753,7 +714,7 @@ public class Main {
             return new HikariDataSource(config);
         }
     }
-    
+
     //////////////////// Starter or debugging code not integral to YASIAS
 
     // First step: Add new RequestMapping annotation for a URL, an associated method,
@@ -765,15 +726,19 @@ public class Main {
     }
 
     @RequestMapping("/debug")
-    String debug(Map<String, Object> model) {
+    String debug(Map<String, Object> model, HttpServletRequest request) {
+        String testString = request.getParameter("parameterThatDoesNotExist"); // returns null
+        if (testString.equals("valueThatIsNonexistant")) {
+            testString = "Getting rid of a warning.";
+        }
+
         try {
             Connection connection = dataSource.getConnection();
-            if(connection == null) {
+            if (connection == null) {
                 // Just getting rid of a warning.
             }
-            
+
             // model.put("message", "Hello, world! dbUrl: " + dbUrl); // The first arg must be "message" because the error page uses <p th:text="${message}">
-            //model.put("message", new DebugClass());
         } catch (SQLException e) {
             model.put("message", e.getMessage() + " --- dbUrl: " + dbUrl);
 
@@ -782,45 +747,4 @@ public class Main {
 
         return "debug";
     }
-
-    @RequestMapping("/db")
-    String db(Map<String, Object> model) {
-        try (Connection connection = dataSource.getConnection()) {
-            Statement stmt = connection.createStatement();
-
-            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS ticks (tick timestamp)");
-
-            stmt.executeUpdate("INSERT INTO ticks VALUES (now())");
-
-            ResultSet rs = stmt.executeQuery("SELECT tick FROM ticks");
-
-            ArrayList<String> output = new ArrayList<String>();
-            while (rs.next()) {
-                output.add("Read from DB: " + rs.getTimestamp("tick"));
-            }
-            model.put("records", output);
-
-            return "db";
-        } catch (Exception e) {
-            model.put("message", e.getMessage());
-
-            return "error";
-        }
-    }
 }
-
-/*
-class DebugClass {
-    private String property1 = "This is property one";
-    public String property2 = "Here's the second property";
-
-    public String getProperty1() {
-        return property1;
-    }
-
-    @Override
-    public String toString() {
-        return "Custom toString() for DebugClass [property1=" + property1 + ", property2=" + property2 + "]";
-    }
-}
-*/
