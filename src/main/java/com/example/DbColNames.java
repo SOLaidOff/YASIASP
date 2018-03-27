@@ -19,8 +19,9 @@ public class DbColNames {
     
     // Comments
     public static final String COMMENTS_ID = "Id"; // Primary key; auto-increment
-    public static final String COMMENTS_POSTID = "PostId"; // Foreign key, matches with Questions or Answers
+    public static final String COMMENTS_AUTHOR = "Author"; // Foreign key, matches with Users
     public static final String COMMENTS_POSTTYPE = "PostType";
+    public static final String COMMENTS_POSTID = "PostId";
     public static final String COMMENTS_BODY = "Body";
     public static final String COMMENTS_TIMESTAMP = "Timestamp";
     

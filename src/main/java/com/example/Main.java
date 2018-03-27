@@ -184,6 +184,47 @@ public class Main {
         model.put("qid", currentQuestionId);
 
         // Display the question
+        
+        // Handle comment
+        boolean isCommentOnQ = request.getParameter("commentQ") != null;
+        boolean isCommentOnA = request.getParameter("commentA") != null;
+        if(isCommentOnQ || isCommentOnA) {
+            String postType = "";
+            Integer postId = new Integer(-1);
+            if(isCommentOnQ) {
+                postType = "question";
+                postId = Integer.parseInt(request.getParameter("id"));
+            } else {
+                postType = "answer";
+                postId = Integer.parseInt(request.getParameter("aid"));
+            }
+            
+            try (Connection connection = dataSource.getConnection()) {
+                PreparedStatement commentAddStmt = connection.prepareStatement("INSERT INTO Comments VALUES (DEFAULT, ? , ?::PostType , ? , ? , 'now');"); // Id, Author, PostType, PostId, Body, Timestamp
+                commentAddStmt.setString(1, request.getParameter("name")); // Author
+                commentAddStmt.setString(2, postType); // PostType
+                commentAddStmt.setInt(3, postId); // PostId
+                commentAddStmt.setString(4, request.getParameter("commentBody")); // Body
+                commentAddStmt.executeUpdate();
+            } catch (Exception e) {
+                model.put("message", "try/catch error in /question() while trying to add comment; " + e.getMessage());
+
+                return "error";
+            }
+        }
+        
+        String commentIdToDelete = request.getParameter("deleteComment");
+        if(commentIdToDelete != null) {
+            try (Connection connection = dataSource.getConnection()) {
+                PreparedStatement commentDeleteStmt = connection.prepareStatement("DELETE FROM Comments WHERE Id= ? ;");
+                commentDeleteStmt.setInt(1, Integer.parseInt(commentIdToDelete));
+                commentDeleteStmt.executeUpdate();
+            } catch (Exception e) {
+                model.put("message", "try/catch error when attempting to delete comment " + e.getMessage());
+
+                return "error";
+            }
+        }
 
         // Handle voting
         boolean isQuestionUpvote = request.getParameter("upvoteQ") != null;
@@ -341,6 +382,23 @@ public class Main {
                 }
             }
             model.put("existingQVote", existingQVote);
+            
+            // Get info on question comments
+            PreparedStatement questionStmtComments = connection.prepareStatement("SELECT Id, Body, Timestamp, Author FROM Comments WHERE PostType='question' AND PostId = ? ORDER BY Timestamp ASC;");
+            questionStmtComments.setInt(1, currentQuestionId);
+            ResultSet rsComments = questionStmtComments.executeQuery();
+            
+            List<Comment> questionComments = new ArrayList<Comment>();
+            while (rsComments.next()) {
+                Comment currentComment = new Comment();
+                currentComment.id = rsComments.getInt(DbColNames.COMMENTS_ID);
+                currentComment.author = rsComments.getString(DbColNames.COMMENTS_AUTHOR);
+                currentComment.body = rsComments.getString(DbColNames.COMMENTS_BODY);
+                currentComment.timestamp = rsComments.getTimestamp(DbColNames.COMMENTS_TIMESTAMP);
+                
+                questionComments.add(currentComment);
+            }
+            model.put("questionComments", questionComments);
 
             // Get info on any/all answers to the current question
             List<Answer> answers = new ArrayList<Answer>();
@@ -371,6 +429,23 @@ public class Main {
                     }
                 }
                 currentAnswer.currentUserVote = existingAVote;
+                
+                // Get info on answer comments
+                PreparedStatement answerStmtComments = connection.prepareStatement("SELECT Id, Body, Timestamp, Author FROM Comments WHERE PostType='answer' AND PostId = ? ORDER BY Timestamp ASC;");
+                answerStmtComments.setInt(1, currentAnswer.id);
+                rsComments = answerStmtComments.executeQuery();
+                
+                List<Comment> answerComments = new ArrayList<Comment>();
+                while (rsComments.next()) {
+                    Comment currentComment = new Comment();
+                    currentComment.id = rsComments.getInt(DbColNames.COMMENTS_ID);
+                    currentComment.author = rsComments.getString(DbColNames.COMMENTS_AUTHOR);
+                    currentComment.body = rsComments.getString(DbColNames.COMMENTS_BODY);
+                    currentComment.timestamp = rsComments.getTimestamp(DbColNames.COMMENTS_TIMESTAMP);
+                    
+                    answerComments.add(currentComment);
+                }
+                currentAnswer.comments = answerComments;
 
                 answers.add(currentAnswer);
             }

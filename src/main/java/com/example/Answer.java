@@ -1,6 +1,7 @@
 package com.example;
 
 import java.sql.Timestamp;
+import java.util.List;
 
 public class Answer {
     public int id;
@@ -11,4 +12,6 @@ public class Answer {
     public int score;
 
     public String currentUserVote;
+    
+    public List<Comment> comments;
 }

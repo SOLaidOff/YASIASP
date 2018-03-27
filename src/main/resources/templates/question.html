@@ -56,9 +56,21 @@
   <p><a href="/questionedit" th:href="|/questionedit?name=${currentUser}&id=${qid}|">Edit this question</a></p>
   <p><a href="/questiondelete" th:href="|/questiondelete?name=${currentUser}&id=${qid}|">Delete this question</a></p>
 
-  <ul>
-  <li>Comments on question, if any, go here
+  <ul th:each="comment : ${questionComments}">
+    <li>
+      <span th:text="|${comment.body} -${comment.author}, ${comment.timestamp}|">Comments on question, if any, go here</span>
+      <a th:href="|/question?name=${currentUser}&id=${qid}&deleteComment=${comment.id}|">(delete comment)</a>
+    </li>
   </ul>
+  
+  <!-- Form for adding a new comment on the question -->
+  <form method="post">
+    <input type="hidden" name="id" value="-1" th:value="${qid}">
+    <input type="hidden" name="commentQ" value="true">
+    <input type="hidden" name="name" value="anonymous" th:value="${currentUser}">
+    <textarea name="commentBody" required maxlength="750" rows="5" cols="50">Your comment here</textarea>
+    <input type="submit" value="Leave your comment on this question">
+  </form>
   
   <p><a href="/answer" th:href="|/answer?name=${currentUser}&qid=${qid}&questionTitle=${title}|">Answer this question</a></p>
 
@@ -111,13 +123,28 @@
   <p><a href="/answeredit" th:href="|/answeredit?name=${currentUser}&id=${answer.id}&qid=${qid}|">Edit this answer</a></p>
   <p><a href="/answerdelete" th:href="|/answerdelete?name=${currentUser}&id=${answer.id}&qid=${qid}|">Delete this answer</a></p>
 
-  <ul>
-    <li>Comments on answer, if any, go here
+  <ul th:each="comment : ${answer.comments}">
+    <li>
+      <span th:text="|${comment.body} -${comment.author}, ${comment.timestamp}|">Comments on answer, if any, go here</span>
+      <a th:href="|/question?name=${currentUser}&id=${qid}&deleteComment=${comment.id}|">(delete comment)</a>
+    </li>
   </ul>
+  
+  <!-- Form for adding a new comment on this answer -->
+  <form method="post">
+    <input type="hidden" name="id" value="-1" th:value="${qid}">
+    <input type="hidden" name="aid" value="-1" th:value="${answer.id}">
+    <input type="hidden" name="commentA" value="true">
+    <input type="hidden" name="name" value="anonymous" th:value="${currentUser}">
+    <textarea name="commentBody" required maxlength="750" rows="5" cols="50">Your comment here</textarea>
+    <input type="submit" value="Leave your comment on this answer">
+  </form>
   
   <hr />
 
 </div><!-- Div enclosing entire answer -->
 
+<p>Done? <a href="/" th:href="|/?name=${currentUser}|">Return to main page</a>
+  
 </body>
 </html>
