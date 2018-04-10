@@ -11,7 +11,7 @@
   <div th:unless="${submitted} == null">
     <h2>Your submission was successful. You may ask another question below, if you wish.</h2>
     
-    <p>Or, visit <a href="/question" th:href="|/question?id=${newlyAskedQuestionsId}|">the question you just asked</a>.
+    <p>Or, visit <a href="/question" th:href="|/question?id=${newlyAskedQuestionsId}&name=${currentUser}|">the question you just asked</a>.
   </div>
 
   <form method="post">

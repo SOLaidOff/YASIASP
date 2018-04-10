@@ -25,6 +25,6 @@
     <input type="submit" value="Update this answer">
   </form>
 
-  <p>Done with edits? <a href="/question" th:href="|/question?id=${qid}|">Return to the question</a> or <a href="/" th:href="|/?name=${currentUser}|">return to main page</a>
+  <p>Done with edits? <a href="/question" th:href="|/name=${currentUser}&question?id=${qid}|">Return to the question</a> or <a href="/" th:href="|/?name=${currentUser}|">return to main page</a>
 </body>
 </html>
