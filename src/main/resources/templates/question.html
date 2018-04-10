@@ -26,10 +26,8 @@
   Question body text goes here. Lorem ipsum dolor sit amet...
   </div>
   <br />
-
-  Author: <span th:text="${author}">Author name goes here.</span>
-  <br />
-  <span th:text="${timestamp}">timestamp</span>
+  
+  <p><span th:text="|This question was last modified by ${author} at ${timestamp}.|">This question was last modified by [name] at [time].</span>
 
   <!-- Voting buttons -->  
   <form method="post" th:unless="${existingQVote} == 'upvote'"> <!-- Results in /question?upvote=true -->
@@ -50,11 +48,10 @@
     <input type="hidden" name="name" value="anonymous" th:value="${currentUser}">
     <input type="submit" value="Downvote this question">
   </form>
-  
-  <p><span th:text="|This question was last modified by ${author} at ${timestamp}.|">This question was last modified by [name] at [time].</span>
 
   <p><a href="/questionedit" th:href="|/questionedit?name=${currentUser}&id=${qid}|">Edit this question</a></p>
   <p><a href="/questiondelete" th:href="|/questiondelete?name=${currentUser}&id=${qid}|">Delete this question</a></p>
+  <p><a href="/questionhistory" th:href="|/questionhistory?name=${currentUser}&id=${qid}|">See this question's history</a></p>
 
   <ul th:each="comment : ${questionComments}">
     <li>
@@ -120,6 +117,7 @@
   
   <p><a href="/answeredit" th:href="|/answeredit?name=${currentUser}&id=${answer.id}&qid=${qid}|">Edit this answer</a></p>
   <p><a href="/answerdelete" th:href="|/answerdelete?name=${currentUser}&id=${answer.id}&qid=${qid}|">Delete this answer</a></p>
+  <p><a href="/answerhistory" th:href="|/answerhistory?name=${currentUser}&id=${answer.id}&qid=${qid}|">See this answer's history</a></p>
 
   <ul th:each="comment : ${answer.comments}">
     <li>

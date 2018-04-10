@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+<title>Yet Another "Stack in a Semester" Project - answer history view</title>
+</head>
+
+<body>
+
+<p>Done? <a href="/" th:href="|/question?id=${qid}|">Return to the question</a> or <a href="/" th:href="|/?name=${currentUser}|">return to main page</a>
+
+<h1 th:text="|Revision history for answer ${aid}|">[Answer history for ID#]</h1>
+
+<hr />
+
+<div th:each="answerHistory : ${answerHistories}">
+  <div th:utext="${answerHistory.body}">
+  Answer body text goes here. Lorem ipsum dolor sit amet...
+  </div>
+
+  <p><span th:text="|This answer was last modified by ${answerHistory.author} at ${answerHistory.timestamp}.|">This answer was modified by [name] at [time].</span>
+    
+  <hr />
+</div>
+
+<p>Done? <a href="/" th:href="|/question?id=${qid}|">Return to the question</a> or <a href="/" th:href="|/?name=${currentUser}|">return to main page</a>
+  
+</body>
+</html>

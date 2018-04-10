@@ -76,7 +76,7 @@ public class Main {
         }
 
         try (Connection connection = dataSource.getConnection()) {
-            PreparedStatement questionsStmt = connection.prepareStatement("SELECT * FROM Questions;");
+            PreparedStatement questionsStmt = connection.prepareStatement("SELECT Id, Author, Title, Timestamp, Score FROM Questions;");
             ResultSet rs = questionsStmt.executeQuery();
 
             List<Question> questions = new ArrayList<Question>();
@@ -345,7 +345,7 @@ public class Main {
         // Done with vote handling, get the rest of the post info
         try (Connection connection = dataSource.getConnection()) {
             // Get basic info on the current question
-            PreparedStatement questionStmtMain = connection.prepareStatement("SELECT * FROM Questions WHERE Id= ? ;");
+            PreparedStatement questionStmtMain = connection.prepareStatement("SELECT Author, Title, Body, Timestamp, Score FROM Questions WHERE Id= ? ;");
             questionStmtMain.setInt(1, currentQuestionId);
             ResultSet rs = questionStmtMain.executeQuery();
 
@@ -402,7 +402,7 @@ public class Main {
 
             // Get info on any/all answers to the current question
             List<Answer> answers = new ArrayList<Answer>();
-            PreparedStatement answerStmtMain = connection.prepareStatement("SELECT * FROM Answers WHERE Question = ? ;");
+            PreparedStatement answerStmtMain = connection.prepareStatement("SELECT Id, Author, Question, Body, Timestamp, Score FROM Answers WHERE Question = ? ;");
             answerStmtMain.setInt(1, currentQuestionId);
             rs = answerStmtMain.executeQuery();
 
@@ -510,7 +510,7 @@ public class Main {
         try (Connection connection = dataSource.getConnection()) {
             ResultSet rs = null;
 
-            PreparedStatement questionEditStmtReadMain = connection.prepareStatement("SELECT * FROM Questions WHERE Id= ? ;");
+            PreparedStatement questionEditStmtReadMain = connection.prepareStatement("SELECT Title, Body FROM Questions WHERE Id= ? ;");
             questionEditStmtReadMain.setInt(1, currentQuestionId);
             rs = questionEditStmtReadMain.executeQuery();
 
@@ -567,6 +567,42 @@ public class Main {
         }
 
         return "questiondelete";
+    }
+
+    @RequestMapping("/questionhistory")
+    String questionHistory(Map<String, Object> model, HttpServletRequest request) {
+        String currentUser = getCurrentUser(request);
+        model.put("currentUser", currentUser);
+
+        Integer questionId = Integer.parseInt(request.getParameter("id"));
+        model.put("qid", questionId);
+        
+        try (Connection connection = dataSource.getConnection()) {
+            PreparedStatement stmt = connection.prepareStatement("SELECT Id, Author, Title, Body, Timestamp FROM QuestionHistory WHERE QId = ? ORDER BY Id DESC;");
+            stmt.setInt(1, questionId);
+            
+            ResultSet rsQHistory = stmt.executeQuery();
+            
+            List<QuestionHistory> questionHistories = new ArrayList<QuestionHistory>();
+            while(rsQHistory.next()) {
+                QuestionHistory currentHistory = new QuestionHistory();
+                currentHistory.author = rsQHistory.getString(DbColNames.QUESTION_HISTORY_AUTHOR);
+                currentHistory.title = rsQHistory.getString(DbColNames.QUESTION_HISTORY_TITLE);
+                currentHistory.body = rsQHistory.getString(DbColNames.QUESTION_HISTORY_BODY);
+                currentHistory.timestamp = rsQHistory.getTimestamp(DbColNames.QUESTION_HISTORY_TIMESTAMP);
+                currentHistory.parent = questionId;
+                
+                questionHistories.add(currentHistory);
+            }
+            
+            model.put("questionHistories", questionHistories);
+        } catch (Exception e) {
+            model.put("message", "Error fetching history in questionHistory(); " + e.getMessage());
+
+            return "error";
+        }
+        
+        return "questionhistory";
     }
 
     //////////////////// Methods related to YASIAS answers
@@ -627,7 +663,7 @@ public class Main {
 
         if (request.getParameter("id") != null) {
             try (Connection connection = dataSource.getConnection()) {
-                PreparedStatement stmt = connection.prepareStatement("SELECT * FROM Answers WHERE Id= ? ;");
+                PreparedStatement stmt = connection.prepareStatement("SELECT Body FROM Answers WHERE Id= ? ;");
                 stmt.setInt(1, Integer.parseInt(request.getParameter("id")));
                 ResultSet rs = stmt.executeQuery();
 
@@ -668,6 +704,43 @@ public class Main {
         }
 
         return "answerdelete";
+    }
+
+    @RequestMapping("/answerhistory")
+    String answerHistory(Map<String, Object> model, HttpServletRequest request) {
+        String currentUser = getCurrentUser(request);
+        model.put("currentUser", currentUser);
+
+        Integer answerId = Integer.parseInt(request.getParameter("id"));
+        model.put("aid", answerId);
+
+        model.put("qid", Integer.parseInt(request.getParameter("qid")));
+        
+        try (Connection connection = dataSource.getConnection()) {
+            PreparedStatement stmt = connection.prepareStatement("SELECT Id, Author, Body, Timestamp FROM AnswerHistory WHERE AId = ? ORDER BY Id DESC;");
+            stmt.setInt(1, answerId);
+            
+            ResultSet rsAHistory = stmt.executeQuery();
+            
+            List<AnswerHistory> answerHistories = new ArrayList<AnswerHistory>();
+            while(rsAHistory.next()) {
+                AnswerHistory currentHistory = new AnswerHistory();
+                currentHistory.author = rsAHistory.getString(DbColNames.ANSWER_HISTORY_AUTHOR);
+                currentHistory.body = rsAHistory.getString(DbColNames.ANSWER_HISTORY_BODY);
+                currentHistory.timestamp = rsAHistory.getTimestamp(DbColNames.ANSWER_HISTORY_TIMESTAMP);
+                currentHistory.parent = answerId;
+                
+                answerHistories.add(currentHistory);
+            }
+            
+            model.put("answerHistories", answerHistories);
+        } catch (Exception e) {
+            model.put("message", "Error fetching history in answerHistory(); " + e.getMessage());
+
+            return "error";
+        }
+        
+        return "answerhistory";
     }
 
     //////////////////// Methods related to YASIAS users
@@ -758,32 +831,6 @@ public class Main {
 
     //////////////////// YASIAS helper methods
 
-    /*
-     * @formatter:off
-    private Map<String, String> parseHttpRequestParams(String queryString) {
-        Map<String, String> paramMap = new HashMap<String, String>();
-
-        if (queryString == null) {
-            return paramMap;
-        }
-
-        Scanner paramScanner = new Scanner(queryString);
-        paramScanner.useDelimiter("[=&]");
-
-        while (paramScanner.hasNext()) {
-            String key = paramScanner.next();
-            String value = paramScanner.next();
-
-            paramMap.put(key, value);
-        }
-
-        paramScanner.close();
-
-        return paramMap;
-    }
-     * @formatter:on
-     */
-
     private String getCurrentUser(HttpServletRequest request) {
         String currentUser = request.getParameter("name"); // null if there was no name param
         if (currentUser == null) {
@@ -792,19 +839,6 @@ public class Main {
 
         return currentUser;
     }
-
-    /*
-     * @formatter:off
-    private String getCurrentUserFromQueryString(Map<String, String> httpRqstVarsMap) {
-        String currentUser = httpRqstVarsMap.get("name"); // null if there was no name param if(currentUser == null)
-        {
-            currentUser = "anonymous";
-        }
-
-        return currentUser;
-    }
-     * @formatter:on
-     */
 
     // tl;dr on Hikari:
     // Came with the example code, is a third-party open-source drop-in connection pool solution
@@ -822,35 +856,5 @@ public class Main {
     }
 
     //////////////////// Starter or debugging code not integral to YASIAS
-
-    // First step: Add new RequestMapping annotation for a URL, an associated method,
-    // and an .html page under src/main/resources/templates with the returned name
-    // See "db" for a more complex example that accesses the DB and modifies the model and view
-    @RequestMapping("/test")
-    String test() {
-        return "test";
-    }
-
-    @RequestMapping("/debug")
-    String debug(Map<String, Object> model, HttpServletRequest request) {
-        String testString = request.getParameter("parameterThatDoesNotExist"); // returns null
-        if (testString.equals("valueThatIsNonexistant")) {
-            testString = "Getting rid of a warning.";
-        }
-
-        try {
-            Connection connection = dataSource.getConnection();
-            if (connection == null) {
-                // Just getting rid of a warning.
-            }
-
-            // model.put("message", "Hello, world! dbUrl: " + dbUrl); // The first arg must be "message" because the error page uses <p th:text="${message}">
-        } catch (SQLException e) {
-            model.put("message", e.getMessage() + " --- dbUrl: " + dbUrl);
-
-            return "error";
-        }
-
-        return "debug";
-    }
+    // (Removed)
 }
