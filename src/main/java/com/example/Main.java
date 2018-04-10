@@ -725,6 +725,37 @@ public class Main {
 
     // TODO: allow looking at info about existing tags; not top priority
 
+    //////////////////// Methods for handling reporting in YASIAS
+
+    @RequestMapping("/reports")
+    String reports(Map<String, Object> model, HttpServletRequest request) {
+        String currentUser = getCurrentUser(request);
+        model.put("currentUser", currentUser);
+        
+        try (Connection connection = dataSource.getConnection()) {
+            PreparedStatement reportStmt;
+            ResultSet reportRs;
+            
+            reportStmt = connection.prepareStatement("SELECT AVG(AnsPerQ) AS AvgAnsCountAllTime FROM (SELECT COUNT(aid) AS AnsPerQ FROM QAPosts GROUP BY qid) AS QsWithAs;");
+            reportRs = reportStmt.executeQuery();
+            reportRs.next();
+            model.put("AvgAnsCountAllTime", reportRs.getFloat("AvgAnsCountAllTime"));
+            
+            reportStmt = connection.prepareStatement("SELECT AVG(AnsPerQPastWeek) AS AvgAnsCountPastWeek FROM (SELECT COUNT(aid) AS AnsPerQPastWeek FROM QAPosts WHERE qTimestamp > now() - INTERVAL '1 week' GROUP BY qid) AS QsWithPastWeekAs;");
+            reportRs = reportStmt.executeQuery();
+            reportRs.next();
+            model.put("AvgAnsCountPastWeek", reportRs.getFloat("AvgAnsCountPastWeek"));
+            
+            // TODO: more reports?
+        } catch (Exception e) {
+            model.put("message", "try/catch error in userdelete(); " + e.getMessage());
+
+            return "error";
+        }
+        
+        return "reports";
+    }
+
     //////////////////// YASIAS helper methods
 
     /*

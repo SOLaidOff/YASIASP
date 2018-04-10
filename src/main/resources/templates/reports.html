@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+<title>YASIAS - Reports</title>
+</head>
+
+<body>
+  <h1>YASIAS reports</h1>
+  <p><a href="/" th:href="|/?name=${currentUser}|">Return to main page</a>
+	
+  <p>Average number of answers per question, all-time: <span th:text="${AvgAnsCountAllTime}">[average all-time]</span>
+  
+  <p>Average number of answers per question, for questions asked in the last week: <span th:text="${AvgAnsCountPastWeek}">[average past week]</span>
+	
+  <p><a href="/" th:href="|/?name=${currentUser}|">Return to main page</a>
+</body>
+
+</html>
