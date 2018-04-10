@@ -7,7 +7,7 @@
 
 <body>
 
-<p>Done? <a href="/" th:href="|/question?id=${qid}|">Return to the question</a> or <a href="/" th:href="|/?name=${currentUser}|">return to main page</a>
+<p>Done? <a href="/" th:href="|/name=${currentUser}&question?id=${qid}|">Return to the question</a> or <a href="/" th:href="|/?name=${currentUser}|">return to main page</a>
 
 <h1 th:text="|Revision history for answer ${aid}|">[Answer history for ID#]</h1>
 
@@ -23,7 +23,7 @@
   <hr />
 </div>
 
-<p>Done? <a href="/" th:href="|/question?id=${qid}|">Return to the question</a> or <a href="/" th:href="|/?name=${currentUser}|">return to main page</a>
+<p>Done? <a href="/" th:href="|/name=${currentUser}&question?id=${qid}|">Return to the question</a> or <a href="/" th:href="|/?name=${currentUser}|">return to main page</a>
   
 </body>
 </html>
